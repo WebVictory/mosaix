@@ -51,4 +51,4 @@
 
 ## Файлы
 
-`categories.yaml`, `attributes.yaml`, `noise.yaml` (сгенерированы скриптом по базе), `units.yaml` (вручную) — все четыре проверены YAML-парсером; `markings.md`, `traps.md` (50 ловушек), `gold_candidates.md` (40 кандидатов), `questions_for_specialist.md` (15 вопросов).
+`categories.yaml`, `attributes.yaml`, `noise.yaml` (сгенерированы скриптом по базе), `units.yaml` (вручную) — все четыре проверены YAML-парсером; `markings.md`, `traps.md` (50 ловушек), `questions_for_specialist.md` (15 вопросов).

@@ -57,10 +57,9 @@ uv run python evaluation/evaluate.py --llm cache      # метрики → evalu
 | [AI_LOG.md](AI_LOG.md) | журнал работы с ИИ и время |
 | `src/analog_search/` | код по слоям: `domain` (правила и порты) ← `services` (сценарии) ← `repositories` (БД) и `infrastructure` (файлы, модели, источники) ← `app` (API, CLI, сборка); направление импортов проверяет `tests/test_layers.py` |
 | `static/` | страницы поиска и правки знаний |
-| `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту; `scripts/` — генератор yaml из базы |
+| `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту, промпт исследования `PROMPT.md`; `scripts/` — генератор yaml из базы |
 | `config/search.yaml` | веса оценки, порог «не найдено», top-K |
 | `evaluation/` | контрольный набор `gold_queries.json`, `evaluate.py`, отчёт |
 | `demo/decisions.json` | демо-решения специалиста → золотые карточки |
 | `data/` | `positions.xlsx` (копия базы из задания), дамп БД, кэш ответов модели |
-| `prompts/` | промпт исследования предметной области |
 | `tests/` | тесты |

@@ -3,7 +3,7 @@
 `categories.yaml`, `attributes.yaml` и `noise.yaml` собираются из базы этими скриптами; `units.yaml` и `*.md` написаны вручную.
 
 ```bash
-cd analog-search/research/scripts
+cd research/scripts
 python3 export_rows.py   # data/positions.xlsx -> rows.json
 python3 classify.py      # rows.json -> classified.json, печатает покрытие
 python3 gen.py           # -> ../categories.yaml, ../attributes.yaml, ../noise.yaml

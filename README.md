@@ -1,0 +1,47 @@
+# analog-search
+
+Поиск аналогов материалов и оборудования по истории закупок: та же позиция, допустимый аналог с перечнем
+отличий — или честное «не найдено» с причиной.
+
+## Запуск
+
+```bash
+OPENROUTER_API_KEY=sk-or-... docker compose up --build
+```
+
+Открыть http://localhost:8000 (поиск), http://localhost:8000/knowledge (правка знаний), http://localhost:8000/docs (API).
+
+Ключ OpenRouter обязателен: через него идут модель Jev Choice и вектор запроса (bge-m3); без ключа API не
+стартует. Вместо параметра можно `cp .env.example .env` и вписать ключ туда. Первый старт восстанавливает базу из
+дампа `data/dump/analog.dump`. Начать с чистой базы — `docker compose down -v`. Другой файл истории —
+`POSITIONS_FILE=/path/file.xlsx`, другой порт — `API_PORT=8080`.
+
+## Локально
+
+```bash
+uv sync
+docker compose up -d db                               # PostgreSQL 17 + pg_trgm + pgvector, порт 5434
+uv run analog-search db init && uv run analog-search positions load
+uv run analog-search serve                            # http://127.0.0.1:8000
+uv run analog-search --help                           # остальные команды: search, decisions, knowledge, sources
+
+uv run pytest                                         # тесты без БД; -m integration — с БД
+uv run python evaluation/evaluate.py                  # метрики → evaluation/metrics_report.md
+```
+
+## Где что лежит
+
+| Путь | Что |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | схема, шаги, где ИИ / код / человек, хранилище, прод на 500 тыс., качество, план, вопросы защиты |
+| [AI_LOG.md](AI_LOG.md) | журнал работы с ИИ и время |
+| [docs/](docs) | подробно: шаги поиска, замер качества, слабые места и полный план |
+| `src/analog_search/` | код: `domain` (правила) → `repositories` (БД) → `services` → `app` (API, CLI) |
+| `static/` | страницы поиска и правки знаний |
+| `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту |
+| `config/search.yaml` | веса оценки, порог «не найдено», top-K |
+| `evaluation/` | контрольный набор `gold_queries.json`, `evaluate.py`, отчёт |
+| `demo/decisions.json` | демо-решения специалиста → золотые карточки |
+| `data/` | `positions.xlsx` (копия базы из задания), дамп БД, кэш ответов модели |
+| `prompts/` | промпт исследования предметной области |
+| `tests/` | тесты |

@@ -1,0 +1,11 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+# Downloaded taxonomies: fetched by `analog-search sources fetch`, not stored in git
+data/sources/
+# Vectors of the base and of queries: computed with the key, ~25 MB, not stored in git
+data/llm/embeddings.jsonl

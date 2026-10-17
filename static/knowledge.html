@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Знания поиска</title>
+<style>
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f5; --text:#1b1f24; --muted:#5d6672; --border:#dde1e6;
+  --accent:#2457c5; --ok:#1d7a3e; --ok-bg:#e5f4ea; --warn:#8a5a00; --warn-bg:#fdf1d8;
+  --bad:#b42318; --bad-bg:#fde8e6; --info:#5b3fb3; --info-bg:#efeafb; --shadow:0 1px 2px rgba(16,24,40,.06);
+  --lift:0 6px 20px rgba(16,24,40,.16);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121417; --surface:#1b1e23; --surface-2:#23272d; --text:#e7e9ec; --muted:#9aa3ae; --border:#30353c;
+    --accent:#7aa2ff; --ok:#5cc985; --ok-bg:#16301f; --warn:#e7b84f; --warn-bg:#352a12;
+    --bad:#ff8a7e; --bad-bg:#3a1a17; --info:#b7a2ff; --info-bg:#2a2340; --shadow:none; --lift:0 6px 20px rgba(0,0,0,.5);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:0 16px 40px}
+a{color:var(--accent)}
+.wrap{max-width:1180px;margin:0 auto}
+header{padding:18px 0 12px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+h1{font-size:19px;margin:0}
+h2{font-size:16px;margin:0}
+h3{margin:0 0 8px;font-size:14px}
+.sub{color:var(--muted);font-size:13px;max-width:760px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+.bar{position:sticky;top:0;z-index:5;margin:0 -16px 14px;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border)}
+.bar .inner{max-width:1180px;margin:0 auto}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 auto}
+input[type=text],input[type=number],select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 8px;min-width:0}
+.btn{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:6px 13px;cursor:pointer;white-space:nowrap}
+.btn.ghost{background:none;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:default}
+.x{font:inherit;font-size:12px;border:none;background:none;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:5px}
+.x:hover{color:var(--bad);background:var(--bad-bg)}
+.muted,.note{color:var(--muted);font-size:12.5px}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.b-draft{background:var(--info-bg);color:var(--info)}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-bad{background:var(--bad-bg);color:var(--bad)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:760px){.layout{grid-template-columns:1fr}.nav{position:static!important}.cats{max-height:40vh!important}}
+.nav{position:sticky;top:64px}
+.cats{max-height:calc(100vh - 190px);overflow:auto;margin:8px -6px 0;padding:0 6px}
+.cat{display:flex;justify-content:space-between;gap:6px;width:100%;text-align:left;font:inherit;font-size:13px;border:none;background:none;color:var(--text);padding:5px 7px;border-radius:6px;cursor:pointer}
+.cat:hover{background:var(--surface-2)}
+.cat.on{background:var(--info-bg);color:var(--info)}
+.cat.on .name{font-weight:600}
+.cat .meta{display:block;color:var(--muted);font-size:11.5px}
+.cat.empty .name{color:var(--muted)}
+.marks{display:flex;gap:3px;align-items:center;flex:none;padding-top:5px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.edit{background:var(--info)}
+.dot.hint{background:var(--warn)}
+.groupname{display:flex;justify-content:space-between;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 7px 2px}
+.filters{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.chipbtn{font:inherit;font-size:12px;border:1px solid var(--border);background:none;color:var(--muted);border-radius:999px;padding:2px 10px;cursor:pointer}
+.chipbtn.on{border-color:var(--info);background:var(--info-bg);color:var(--info)}
+.head{display:flex;gap:10px;justify-content:space-between;align-items:baseline;flex-wrap:wrap}
+.facts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+.fact{font-size:12px;background:var(--surface-2);border-radius:5px;padding:2px 8px;color:var(--muted)}
+.fact b{color:var(--text)}
+.section{margin-top:16px}
+.words{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:8px;min-height:44px}
+.words.edited{border-color:var(--info)}
+.word{display:inline-flex;align-items:center;gap:2px;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:1px 2px 1px 8px}
+.word.added{background:var(--info-bg);border-color:var(--info);color:var(--info)}
+.word.removed{text-decoration:line-through;color:var(--muted);background:none;border-style:dashed}
+.word .x{padding:0 5px}
+.word.removed .x:hover{color:var(--ok);background:var(--ok-bg)}
+.words input{border:none;background:none;flex:1 1 160px;padding:4px;outline:none}
+.hint{color:var(--muted);font-size:12px;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;padding:6px;border-bottom:1px solid var(--border)}
+td{padding:6px;border-bottom:1px solid var(--border);vertical-align:top}
+td select,td input{width:100%}
+td select{min-width:118px}
+td input[type=number]{min-width:56px}
+input:disabled{opacity:.35}
+td.edited select,td.edited input{border-color:var(--info);background:var(--info-bg)}
+.tablewrap{overflow-x:auto}
+.attr small{display:block;color:var(--muted);font-size:11.5px;overflow-wrap:anywhere}
+.list{margin:0;padding:0;list-style:none}
+.list li{padding:7px 0;border-top:1px solid var(--border)}
+.list li:first-child{border-top:none}
+.change{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.sugg{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+/* Suggestions: an edit to make, its evidence one line under it; what needs a developer folded away */
+#suggPanel > summary{cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.fix{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--border)}
+.fix:first-child{border-top:none}
+.fix .what{font-weight:600}
+.fix .what .change{font-weight:400;color:var(--info)}
+.fix .why{color:var(--muted);font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.fix .why q{color:var(--text)}
+.dev{margin-top:10px;font-size:12.5px}
+.dev summary{cursor:pointer;color:var(--muted)}
+.dev ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.dev li{margin:3px 0}
+.dev li b{color:var(--text);font-weight:600}
+.metric{display:inline-block;margin:2px 16px 6px 0}
+.metric b{font-size:16px}
+details summary{cursor:pointer;color:var(--muted);font-size:12.5px;margin-top:6px}
+.legend{font-size:12px;color:var(--muted);margin-top:8px}
+.samples{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:10;max-width:min(560px,calc(100vw - 32px));
+  background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--info);border-radius:8px;padding:10px 14px;
+  box-shadow:var(--lift);font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.toast.ok{border-left-color:var(--ok)}
+.toast.bad{border-left-color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Знания поиска: категории и правила сравнения</h1>
+      <div class="sub">Каждое изменение сразу попадает в черновик, но поиск работает по действующей версии. «Проверить влияние» покажет, что изменится: строки истории, согласие с отметками специалистов, ответы на контрольные запросы. «Опубликовать» делает черновик действующей версией.</div>
+    </div>
+    <a href="/">← Поиск</a>
+  </header>
+</div>
+
+<div class="bar">
+  <div class="inner row">
+    <div class="grow" id="status">Загрузка…</div>
+    <input id="author" type="text" placeholder="Ваше имя" aria-label="Автор правок" style="width:140px">
+    <input id="reason" type="text" placeholder="Причина правки" aria-label="Причина правки" style="width:200px">
+    <button class="btn ghost" id="check" type="button" disabled>Проверить влияние</button>
+    <button class="btn" id="publish" type="button" disabled>Опубликовать</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="panel" id="draftPanel" hidden>
+    <h3>Черновик</h3>
+    <ul class="list" id="edits"></ul>
+    <div id="impact"></div>
+  </div>
+
+  <details class="panel" id="suggPanel" hidden>
+    <summary><b style="font-size:14px">Подсказки из золотых карточек</b> <span id="suggCount" class="note"></span></summary>
+    <div id="suggestions" style="margin-top:8px"></div>
+  </details>
+
+  <div class="layout">
+    <div class="panel nav">
+      <input id="filter" type="text" placeholder="Категория, код или слово-признак" aria-label="Фильтр категорий" style="width:100%">
+      <div class="filters" id="filters">
+        <button class="chipbtn on" data-show="all" type="button">все</button>
+        <button class="chipbtn" data-show="marked" type="button">с правками и подсказками</button>
+        <button class="chipbtn" data-show="rules" type="button">с характеристиками</button>
+      </div>
+      <div class="cats" id="cats"></div>
+      <div class="legend"><span class="dot edit"></span> правка в черновике &nbsp; <span class="dot hint"></span> подсказка</div>
+    </div>
+    <div class="panel" id="editor"><span class="muted">Выберите категорию слева.</span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const LEVEL = {hard: 'жёсткая', soft: 'мягкая', info: 'справочная'};
+const COMPARISON = {
+  equal: 'совпадает', unordered: 'совпадает (без порядка)', not_worse: 'не хуже (≥)', not_more: 'не больше (≤)',
+  step: '± ступени ряда', includes: 'включает',
+};
+const STATUS = {proposed: 'предложена', approved: 'утверждена', rejected: 'отклонена'};
+const FIELD = {
+  level: 'уровень', comparison: 'сравнение', step_tolerance: 'допуск ступеней', status: 'статус',
+  substitution: 'пояснение к замене', triggers: 'слова-признаки', anti_triggers: 'слова-исключения',
+};
+const DECISION = {same: 'та же', analog: 'аналог', not_analog: 'не подходит'};
+const SERVICE_GROUP = 'служебные строки';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const shown = v => Array.isArray(v) ? (v.join(', ') || '—') : (v === null || v === undefined || v === '' ? '—' : String(v));
+const plural = (n, one, few, many) => {
+  const m10 = n % 10, m100 = n % 100;
+  return `${n} ${m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many}`;
+};
+
+let state = {knowledge: null, suggestions: [], selected: null, show: 'all'};
+let toastTimer = null;
+
+function toast(text, kind = 'info') {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = `toast show ${kind}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, kind === 'bad' ? 6000 : 3500);
+}
+
+function remember(id) {
+  const input = $(id);
+  try { input.value = localStorage.getItem('knowledge.' + id) || ''; } catch (_) {}
+  input.addEventListener('change', () => { try { localStorage.setItem('knowledge.' + id, input.value); } catch (_) {} });
+}
+
+async function api(method, url, body) {
+  const response = await fetch(url, {
+    method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined,
+  });
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || `Ошибка ${response.status}`);
+  return data;
+}
+
+async function load() {
+  try {
+    const [knowledge, suggestions] = await Promise.all([api('GET', '/api/knowledge'), api('GET', '/api/knowledge/suggestions')]);
+    state.knowledge = knowledge;
+    state.suggestions = suggestions;
+    if (!category(state.selected)) {  // a link from the search names the category: /knowledge#code
+      const linked = decodeURIComponent(location.hash.slice(1));
+      state.selected = category(linked) ? linked : suggestions.find(s => s.edit)?.edit.category || goods()[0]?.code;
+    }
+    render();
+  } catch (error) { toast(error.message, 'bad'); }
+}
+
+const goods = () => ordered().filter(c => c.group !== SERVICE_GROUP);
+
+function ordered() {
+  const categories = state.knowledge.categories.filter(c => c.group);
+  return [...categories.filter(c => c.group !== SERVICE_GROUP), ...categories.filter(c => c.group === SERVICE_GROUP)];
+}
+
+function category(code) { return state.knowledge?.categories.find(c => c.code === code); }
+
+function editsOf(code) { return state.knowledge.edits.filter(e => e.category === code); }
+
+function editOf(code, attribute, field) {
+  return state.knowledge.edits.find(e => e.category === code && e.attribute === attribute && e.field === field);
+}
+
+function name(code, attribute) {
+  const c = category(code);
+  if (!c) return code;
+  const a = attribute && c.attributes.find(x => x.code === attribute);
+  return a ? `${c.name} / ${a.name}` : c.name;
+}
+
+function label(field, value) {
+  if (field === 'level') return LEVEL[value] ?? shown(value);
+  if (field === 'comparison') return COMPARISON[value] ?? shown(value);
+  if (field === 'status') return STATUS[value] ?? shown(value);
+  if (field === 'step_tolerance') return '±' + shown(value);
+  return shown(value);
+}
+
+function change(field, previous, value) {
+  if (!Array.isArray(value)) return `${label(field, previous)} → ${label(field, value)}`;
+  const added = value.filter(w => !previous.includes(w)), dropped = previous.filter(w => !value.includes(w));
+  return [added.length ? '+ ' + added.join(', ') : '', dropped.length ? '− ' + dropped.join(', ') : ''].filter(Boolean).join('; ');
+}
+
+function render() {
+  renderStatus();
+  renderSuggestions();
+  renderCategories();
+  renderEditor();
+}
+
+function renderStatus() {
+  const k = state.knowledge, draft = k.edits.length;
+  $('status').innerHTML = `Действует <b>${esc(k.active_version)}</b> ` + (draft
+    ? `<span class="badge b-draft">в черновике ${plural(draft, 'правка', 'правки', 'правок')}</span>`
+    : '<span class="muted">черновик пуст</span>');
+  $('check').disabled = $('publish').disabled = !draft;
+  $('draftPanel').hidden = !draft;
+  $('edits').innerHTML = k.edits.map(e => `<li class="sugg">
+      <div><a href="#" data-goto="${esc(e.category)}"><b>${esc(name(e.category, e.attribute))}</b></a> · ${esc(FIELD[e.field])}:
+        <span class="change">${esc(change(e.field, e.previous, e.value))}</span>
+        <div class="note">${esc(e.author || 'без автора')}${e.reason ? ': «' + esc(e.reason) + '»' : ''}</div></div>
+      <button class="x" data-discard="${e.id}" title="Убрать из черновика" type="button">✕</button></li>`).join('');
+}
+
+// The value a suggested edit would change: as the active release has it
+function currentValue(e) {
+  const made = state.knowledge.edits.find(d => d.category === e.category && d.attribute === e.attribute && d.field === e.field);
+  if (made) return made.previous;
+  const c = category(e.category);
+  const target = e.attribute ? c?.attributes.find(a => a.code === e.attribute) : c;
+  return target?.[e.field];
+}
+
+function renderSuggestions() {
+  // One line per edit, however many verdicts back it; the rest — rows the rules cannot read — per row
+  const fixes = new Map(), dev = new Map();
+  state.suggestions.forEach((s, i) => {
+    if (s.edit) {
+      const key = JSON.stringify([s.edit.category, s.edit.attribute, s.edit.field, s.edit.value]);
+      if (!fixes.has(key)) fixes.set(key, {index: i, edit: s.edit, evidence: []});
+      fixes.get(key).evidence.push(s);
+    } else {
+      const key = `${s.card_id}:${s.row}`;
+      if (!dev.has(key)) dev.set(key, {s, unread: [], other: []});
+      const unread = s.problem.match(/^Не прочитана[^:]*:\s*(.+)$/);
+      if (unread) dev.get(key).unread.push(unread[1]);
+      else dev.get(key).other.push(s.problem.toLowerCase());
+    }
+  });
+  const drafted = e => state.knowledge.edits.some(d =>
+    d.category === e.category && d.attribute === e.attribute && d.field === e.field && JSON.stringify(d.value) === JSON.stringify(e.value));
+  $('suggPanel').hidden = !fixes.size && !dev.size;
+  $('suggPanel').open = fixes.size > 0 && ![...fixes.values()].every(f => drafted(f.edit));
+  $('suggCount').textContent = [
+    fixes.size ? `${plural(fixes.size, 'правка', 'правки', 'правок')} к правилам` : '',
+    dev.size ? `${dev.size} для разработчика` : '',
+  ].filter(Boolean).join(' · ');
+
+  const fixHtml = [...fixes.values()].map(({index, edit: e, evidence}) => {
+    const first = evidence[0];
+    return `<div class="fix"><div>
+        <div class="what"><a href="#" data-goto="${esc(e.category)}">${esc(name(e.category, e.attribute))}</a> · ${esc(FIELD[e.field])}:
+          <span class="change">${esc(change(e.field, currentValue(e), e.value))}</span></div>
+        <div class="why">Специалист отметил «${esc(DECISION[first.decision])}»${first.note ? `: <q>${esc(first.note)}</q>` : ''}, а правило против${evidence.length > 1 ? ` · ещё ${evidence.length - 1}` : ''}
+          <span title="запрос «${esc(first.query)}» → строка ${first.row}: ${esc(first.name)}">ⓘ</span></div>
+      </div>
+      ${drafted(e) ? '<span class="badge b-draft">в черновике</span>' : `<button class="btn ghost" data-suggest="${index}" type="button">В черновик</button>`}</div>`;
+  }).join('');
+  const devHtml = dev.size ? `<details class="dev"><summary>Правилами не решается — нужна доработка чтения названий (${dev.size})</summary><ul>
+      ${[...dev.values()].map(({s, unread, other}) => `<li>строка ${s.row} «${esc(s.name.slice(0, 70))}${s.name.length > 70 ? '…' : ''}» — ${[
+        unread.length ? `не читается: <b>${esc(unread.join(', '))}</b>` : '', ...other.map(esc)].filter(Boolean).join('; ')}</li>`).join('')}
+    </ul></details>` : '';
+  $('suggestions').innerHTML = (fixHtml || '<div class="note">Правок к правилам из карточек нет.</div>') + devHtml;
+}
+
+function renderCategories() {
+  const query = $('filter').value.trim().toLowerCase();
+  const hinted = new Set(state.suggestions.filter(s => s.edit).map(s => s.edit.category));
+  const visible = ordered().filter(c => {
+    const marked = editsOf(c.code).length || hinted.has(c.code);
+    if (state.show === 'marked' && !marked) return false;
+    if (state.show === 'rules' && !c.attributes.length) return false;
+    return !query || `${c.name} ${c.code} ${c.group} ${c.triggers.join(' ')}`.toLowerCase().includes(query);
+  });
+  let html = '', group = null;
+  for (const c of visible) {
+    if (c.group !== group) {
+      group = c.group;
+      html += `<div class="groupname"><span>${esc(group)}</span><span>${visible.filter(x => x.group === group).length}</span></div>`;
+    }
+    const marks = (editsOf(c.code).length ? '<span class="dot edit" title="правка в черновике"></span>' : '')
+      + (hinted.has(c.code) ? '<span class="dot hint" title="подсказка"></span>' : '');
+    const meta = [c.rows ? plural(c.rows, 'строка', 'строки', 'строк') : 'нет строк в истории',
+      c.attributes.length ? plural(c.attributes.length, 'характеристика', 'характеристики', 'характеристик') : null]
+      .filter(Boolean).join(' · ');
+    html += `<button class="cat${c.code === state.selected ? ' on' : ''}${c.rows ? '' : ' empty'}" data-cat="${esc(c.code)}" type="button">
+      <span><span class="name">${esc(c.name)}</span><span class="meta">${meta}</span></span><span class="marks">${marks}</span></button>`;
+  }
+  $('cats').innerHTML = html || '<div class="muted" style="padding:8px">Ничего не найдено</div>';
+}
+
+function options(values, labels, current) {
+  return values.map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(labels[v] ?? v)}</option>`).join('');
+}
+
+function words(c, field, title, hint) {
+  const edit = editOf(c.code, null, field);
+  const active = edit ? edit.previous : c[field];
+  const chips = c[field].map(w => `<span class="word${active.includes(w) ? '' : ' added'}">${esc(w)}
+      <button class="x" data-drop="${field}" data-word="${esc(w)}" title="Убрать" type="button">✕</button></span>`);
+  const removed = active.filter(w => !c[field].includes(w)).map(w => `<span class="word removed">${esc(w)}
+      <button class="x" data-restore="${field}" data-word="${esc(w)}" title="Вернуть" type="button">↺</button></span>`);
+  return `<div class="section">
+      <h3>${title}</h3>
+      <div class="words${edit ? ' edited' : ''}">${[...chips, ...removed].join('')}
+        <input type="text" data-add="${field}" placeholder="+ слово, Enter" aria-label="Добавить: ${esc(title)}"></div>
+      <div class="hint">${hint}</div></div>`;
+}
+
+function renderEditor() {
+  const c = category(state.selected);
+  if (!c) { $('editor').innerHTML = '<span class="muted">Выберите категорию слева.</span>'; return; }
+  const o = state.knowledge.options;
+  const mark = (a, field) => editOf(c.code, a.code, field) ? ' class="edited"' : '';
+  const rows = c.attributes.map(a => {
+    const cell = field => `data-attr="${esc(a.code)}" data-field="${field}"`;
+    const series = a.series ? `<small>ряд: ${esc(a.series.slice(0, 12).join(', '))}${a.series.length > 12 ? '…' : ''}</small>` : '';
+    return `<tr>
+      <td class="attr"><b>${esc(a.name)}</b>${a.unit ? ', ' + esc(a.unit) : ''}<small>${esc(a.code)}${a.source_ref ? ' · ' + esc(a.source_ref) : ''}</small>${series}</td>
+      <td${mark(a, 'level')}><select ${cell('level')} aria-label="Уровень">${options(o.level, LEVEL, a.level)}</select></td>
+      <td${mark(a, 'comparison')}><select ${cell('comparison')} aria-label="Сравнение">${options(o.comparison, COMPARISON, a.comparison)}</select></td>
+      <td${mark(a, 'step_tolerance')}><input type="number" min="0" max="${o.max_tolerance}" value="${a.step_tolerance}" ${cell('step_tolerance')}
+        aria-label="Допуск ступеней" ${a.comparison === 'step' ? '' : 'disabled title="Только для сравнения «± ступени ряда»"'}></td>
+      <td${mark(a, 'status')}><select ${cell('status')} aria-label="Статус">${options(o.status, STATUS, a.status)}</select></td>
+      <td${mark(a, 'substitution')} style="min-width:200px"><input type="text" value="${esc(a.substitution ?? '')}" ${cell('substitution')} aria-label="Пояснение к замене" placeholder="—"></td>
+    </tr>`;
+  }).join('');
+  const samples = c.samples.length ? `<details><summary>Примеры строк истории</summary><ul class="samples">${
+    c.samples.map(s => `<li>${esc(s.length > 160 ? s.slice(0, 160) + '…' : s)}</li>`).join('')}</ul></details>` : '';
+  const edits = editsOf(c.code).length;
+  $('editor').innerHTML = `
+    <div class="head"><h2>${esc(c.name)}</h2><span class="muted">${esc(c.group)} · ${esc(c.code)}</span></div>
+    <div class="facts">
+      <span class="fact">в истории <b>${c.rows}</b></span>
+      <span class="fact">характеристик <b>${c.attributes.length}</b></span>
+      ${c.synonyms.length ? `<span class="fact">синонимы: ${esc(c.synonyms.join(', '))}</span>` : ''}
+      ${edits ? `<span class="badge b-draft">${plural(edits, 'правка', 'правки', 'правок')} в черновике</span>` : ''}
+    </div>
+    ${samples}
+    ${words(c, 'triggers', 'Слова-признаки', 'Строка относится к категории, если её название содержит одно из слов (с начала слова).')}
+    ${words(c, 'anti_triggers', 'Слова-исключения', 'Отменяют признак, который перекрывают: «трансформатор тока» — не силовой трансформатор.')}
+    <div class="section"><h3>Характеристики</h3>
+    ${c.attributes.length ? `<div class="tablewrap"><table>
+      <thead><tr><th>Характеристика</th><th>Уровень</th><th>Сравнение</th><th>Допуск</th><th>Статус</th><th>Пояснение к замене</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div class="legend">Жёсткая — несовпадение отсеивает строку; мягкая — снижает балл; справочная — показывается, не сравнивается.
+        «± ступени ряда» допускает соседние значения ряда на величину допуска (0 — только точно). Изменение сразу уходит в черновик.</div>`
+      : '<div class="muted">Характеристик нет: строки сравниваются по тексту. Новую характеристику добавляет разработчик.</div>'}</div>`;
+}
+
+async function edit(code, attribute, field, value) {
+  try {
+    const made = await api('POST', '/api/knowledge/edits', {
+      category: code, attribute, field, value, author: $('author').value || null, reason: $('reason').value || null,
+    });
+    $('impact').innerHTML = '';
+    toast(made
+      ? `В черновике: ${name(code, attribute)} · ${FIELD[field]}: ${change(field, made.previous, made.value)}`
+      : `${name(code, attribute)} · ${FIELD[field]}: как в действующей версии — в черновике правки нет`, made ? 'ok' : 'info');
+  } catch (error) { toast(error.message, 'bad'); }
+  await load();
+}
+
+function setWords(field, change) {
+  const c = category(state.selected);
+  edit(c.code, null, field, change([...c[field]]));
+}
+
+function renderImpact(r) {
+  const delta = (a, b) => a === b ? 'без изменений' : (b > a ? `+${b - a}` : `${b - a}`);
+  const list = (items, title, cls) => items.length ? `<details open><summary>${title} (${items.length})</summary><ul class="list">${items.map(d =>
+    `<li><span class="badge ${cls}">${esc(DECISION[d.decision])}</span> «${esc(d.query)}» → ${d.row}: ${esc(d.name)}<div class="note">${esc(d.problem)}</div></li>`).join('')}</ul></details>` : '';
+  const queries = r.changed_queries.map(q => `<li>
+      <span class="badge ${q.correct_after ? 'b-ok' : 'b-bad'}">${q.correct_after ? 'верно' : 'неверно'}</span>
+      ${esc(q.id)} «${esc(q.query)}» <span class="note">ожидается: ${esc(q.expected)}</span>
+      <div class="change">было: ${esc(q.before)}<br>стало: ${esc(q.after)}</div></li>`).join('');
+  const rows = r.row_examples.map(x => `<li>${x.row}: ${esc(x.name)}<div class="change">${esc(x.before)} → ${esc(x.after)}</div></li>`).join('');
+  $('impact').innerHTML = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <h3>Влияние черновика (по правилам, без ИИ)</h3>
+    <span class="metric">Строк истории прочитано иначе: <b>${r.rows}</b></span>
+    <span class="metric">Расхождений с отметками специалистов: <b>${r.disagreements_before} → ${r.disagreements_after}</b> из ${r.links} отметок</span>
+    ${r.queries ? `<span class="metric">Контрольных запросов верно: <b>${r.correct_before} → ${r.correct_after}</b> из ${r.queries} (${delta(r.correct_before, r.correct_after)})</span>` : ''}
+    ${list(r.resolved, 'Правила станут согласны с отметками', 'b-ok')}
+    ${list(r.new, 'Новые расхождения с отметками', 'b-bad')}
+    ${queries ? `<details open><summary>Запросы, у которых изменится первая строка (${r.changed_queries.length})</summary><ul class="list">${queries}</ul></details>` : ''}
+    ${rows ? `<details><summary>Строки, прочитанные иначе (первые ${r.row_examples.length} из ${r.rows})</summary><ul class="list">${rows}</ul></details>` : ''}
+  </div>`;
+}
+
+async function check(button) {
+  button.disabled = true; button.textContent = 'Проверяю…';
+  try {
+    renderImpact(await api('POST', '/api/knowledge/check'));
+    $('draftPanel').scrollIntoView({behavior: 'smooth'});
+  } catch (error) { toast(error.message, 'bad'); }
+  button.textContent = 'Проверить влияние';
+  button.disabled = !state.knowledge.edits.length;
+}
+
+async function publish(button) {
+  button.disabled = true; button.textContent = 'Публикую…';
+  try {
+    const r = await api('POST', '/api/knowledge/publish', {author: $('author').value || null, note: $('reason').value || null});
+    const parsed = Object.values(r).filter(v => v && typeof v === 'object' && 'positions' in v).reduce((n, v) => n + v.positions, 0);
+    $('impact').innerHTML = '';
+    toast(`Опубликована версия ${r.version}: ${plural(r.edits, 'правка', 'правки', 'правок')}, история разобрана заново (${parsed} строк); `
+      + `карточек с новым ключом ${r.cards.rekeyed}, объединено ${r.cards.merged}`, 'ok');
+  } catch (error) { toast(error.message, 'bad'); }
+  button.textContent = 'Опубликовать';
+  await load();
+}
+
+function select(code) {
+  state.selected = code;
+  renderCategories();
+  renderEditor();
+  if (window.matchMedia('(max-width:760px)').matches) $('editor').scrollIntoView({behavior: 'smooth'});
+}
+
+document.addEventListener('click', async event => {
+  const goto = event.target.closest('[data-goto]');
+  if (goto) { event.preventDefault(); select(goto.dataset.goto); $('editor').scrollIntoView({behavior: 'smooth'}); return; }
+  const target = event.target.closest('button');
+  if (!target) return;
+  const data = target.dataset;
+  if (data.cat) select(data.cat);
+  else if (data.show) {
+    state.show = data.show;
+    document.querySelectorAll('[data-show]').forEach(b => b.classList.toggle('on', b === target));
+    renderCategories();
+  } else if (data.discard) {
+    try { await api('DELETE', `/api/knowledge/edits/${data.discard}`); $('impact').innerHTML = ''; toast('Правка убрана из черновика'); }
+    catch (error) { toast(error.message, 'bad'); }
+    await load();
+  } else if (data.suggest) {
+    const s = state.suggestions[Number(data.suggest)];
+    state.selected = s.edit.category;
+    await edit(s.edit.category, s.edit.attribute, s.edit.field, s.edit.value);
+  } else if (data.drop) setWords(data.drop, list => list.filter(w => w !== data.word));
+  else if (data.restore) setWords(data.restore, list => [...list, data.word]);
+  else if (target.id === 'check') check(target);
+  else if (target.id === 'publish') publish(target);
+});
+
+document.addEventListener('keydown', event => {
+  const field = event.target.dataset?.add;
+  if (!field || event.key !== 'Enter') return;
+  event.preventDefault();
+  const added = event.target.value.split(',').map(w => w.trim()).filter(Boolean);
+  if (added.length) setWords(field, list => [...list, ...added]);
+});
+
+document.addEventListener('change', event => {
+  const el = event.target;
+  if (!el.dataset.field) return;
+  edit(state.selected, el.dataset.attr, el.dataset.field, el.dataset.field === 'step_tolerance' ? Number(el.value) : el.value);
+});
+
+$('filter').addEventListener('input', renderCategories);
+remember('author');
+load();
+</script>
+</body>
+</html>

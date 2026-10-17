@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поиск аналогов</title>
+<style>
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f5; --text:#1b1f24; --muted:#5d6672; --border:#dde1e6;
+  --accent:#2457c5; --ok:#1d7a3e; --ok-bg:#e5f4ea; --warn:#8a5a00; --warn-bg:#fdf1d8;
+  --bad:#b42318; --bad-bg:#fde8e6; --info:#5b3fb3; --info-bg:#efeafb; --shadow:0 1px 2px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121417; --surface:#1b1e23; --surface-2:#23272d; --text:#e7e9ec; --muted:#9aa3ae; --border:#30353c;
+    --accent:#7aa2ff; --ok:#5cc985; --ok-bg:#16301f; --warn:#e7b84f; --warn-bg:#352a12;
+    --bad:#ff8a7e; --bad-bg:#3a1a17; --info:#b7a2ff; --info-bg:#2a2340; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:0 16px 40px}
+.wrap{max-width:1040px;margin:0 auto}
+header{padding:18px 0 12px;position:relative}
+header .nav{position:absolute;top:18px;right:0;font-size:13px}
+h1{font-size:19px;margin:0}
+.sub{color:var(--muted);font-size:13px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px;font-size:14px}
+form{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text]{width:100%;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 10px}
+.btn{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:default}
+/* Suggestions while a query is typed: its spelling fixed, names of the history */
+.qbox{flex:1 1 260px;min-width:0;position:relative}
+.suggest{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:4px;max-height:320px;overflow:auto}
+.suggest .opt{display:block;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--text);background:none;border:none;border-radius:6px;padding:6px 8px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest .opt.active,.suggest .opt:hover{background:var(--surface-2)}
+.suggest .opt b{color:var(--accent)}
+.suggest .opt .muted{color:var(--muted)}
+.suggest .label{font-size:11.5px;color:var(--muted);padding:4px 8px 2px}
+.didyou{margin:-4px 0 12px;font-size:13.5px}
+.examples{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ex{font:inherit;font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);margin:3px 4px 3px 0}
+.lvl{font-size:11px;color:var(--muted)}
+.ai{font-size:10.5px;font-weight:600;padding:0 5px;border-radius:4px;border:1px solid currentColor;opacity:.75}
+.c-ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.c-warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.c-bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.c-info{background:var(--info-bg);color:var(--info);border-color:transparent}
+button.chip{font:inherit;font-size:12.5px;cursor:pointer}
+.card{border:1px solid var(--border);border-left:4px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:10px;background:var(--surface)}
+.card.same{border-left-color:var(--ok)}
+.card.analog{border-left-color:var(--warn)}
+.card.text,.card.unverified{border-left-color:var(--muted)}
+.card.reject{border-left-color:var(--bad)}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:5px;margin-right:8px;white-space:nowrap}
+.b-same{background:var(--ok-bg);color:var(--ok)}
+.b-analog{background:var(--warn-bg);color:var(--warn)}
+.b-text,.b-unverified{background:var(--surface-2);color:var(--muted)}
+.b-reject{background:var(--bad-bg);color:var(--bad)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.price{font-weight:600;white-space:nowrap}
+.name{display:block;font-weight:600;font-size:15px;margin:6px 0 2px;overflow-wrap:anywhere}
+.issues{margin-top:4px}
+.fine{color:var(--ok);font-size:12.5px;margin-top:4px}
+.meta{color:var(--muted);font-size:12.5px;margin:6px 0 4px}
+.foot{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 12px;margin-top:9px;padding-top:8px;border-top:1px solid var(--border)}
+.more{flex:1 1 280px;min-width:0;font-size:12.5px}
+.more summary{cursor:pointer;color:var(--muted);list-style-position:inside}
+.more summary:hover{color:var(--text)}
+.more[open] summary{margin-bottom:4px}
+.bar{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--surface-2);vertical-align:middle;margin:0 4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.notfound{border:1px dashed var(--bad);background:var(--bad-bg);border-radius:9px;padding:13px;margin-bottom:10px}
+.notfound b{color:var(--bad)}
+.note{font-size:12.5px;color:var(--muted)}
+.error{color:var(--bad)}
+.actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:auto;font-size:12px;color:var(--muted)}
+.act{font:inherit;font-size:12px;padding:2px 8px;border-radius:6px;border:1px solid transparent;background:none;color:var(--muted);cursor:pointer}
+.act:hover{border-color:var(--border);color:var(--text)}
+.act:disabled{opacity:.6;cursor:default}
+.act.on{border-color:var(--info);background:var(--info-bg);color:var(--info);font-weight:600}
+.b-confirmed{background:var(--info-bg);color:var(--info)}
+.why{font-size:12.5px;color:var(--info);margin:-1px 0 4px}
+.links{margin:6px 0 0;padding-left:18px;font-size:12.5px}
+.golden{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:12px;margin-top:20px}
+a{color:var(--accent)}
+/* What was understood, as a shop shows a category: a breadcrumb and every filter of it */
+.u-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;margin-bottom:6px}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:14px}
+.crumbs .group{color:var(--muted)}
+.crumbs .sep{color:var(--muted)}
+.crumbs b{font-size:15px}
+select{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 6px;max-width:100%}
+.linkish{font:inherit;font-size:12.5px;color:var(--accent);background:none;border:none;padding:0;cursor:pointer}
+.facets{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(160px,1.4fr) auto;gap:6px 12px;align-items:center;margin:4px 0 2px}
+.facets .title{grid-column:1/-1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-top:8px}
+.facets .fname{overflow-wrap:anywhere}
+.facets .tags{display:flex;gap:5px;align-items:center;justify-content:flex-end;white-space:nowrap}
+.facets select.set{border-color:var(--accent);font-weight:600}
+.facets select.fixed{border-color:var(--info);background:var(--info-bg);color:var(--info);font-weight:600}
+.facets .empty{color:var(--muted)}
+.facets .gap{color:var(--warn)}
+.tag{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--surface-2);color:var(--muted)}
+.tag.hard{background:var(--bad-bg);color:var(--bad)}
+.tag.soft{background:var(--warn-bg);color:var(--warn)}
+.tag.who{background:var(--info-bg);color:var(--info)}
+.u-tools{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:12.5px}
+footer summary{cursor:pointer}
+@media (max-width:640px){
+  .facets{grid-template-columns:1fr auto}
+  .facets .fname{grid-column:1/-1;margin-top:4px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="nav" href="/knowledge">Знания →</a>
+    <h1>Поиск аналогов по истории закупок</h1>
+    <div class="sub">Наименование как в ведомости → до 5 позиций из истории или «не найдено» с причиной.</div>
+  </header>
+
+  <div class="panel">
+    <form id="form">
+      <div class="qbox">
+        <input id="query" type="text" placeholder="Например: кабель КВВГнг-LS 7*1.5" aria-label="Запрос" autocomplete="off" autofocus
+          role="combobox" aria-controls="suggest" aria-expanded="false">
+        <div id="suggest" class="suggest" role="listbox" hidden></div>
+      </div>
+      <button id="submit" class="btn" type="submit">Найти</button>
+    </form>
+    <div id="examples" class="examples"></div>
+  </div>
+
+  <div id="understood"></div>
+  <div id="result"></div>
+  <footer id="stats"></footer>
+</div>
+
+<script>
+const EXAMPLES = [
+  'кабель КВВГнг-LS 7*1.5',
+  'камера IP уличная 2 Мп вариофокальная',
+  'ворота откатные 6000х2250',
+  'труба гофра ПВХ 25 мм',
+  'ИБП 12В для улицы',
+  'бесперебойник 12 вольт уличный',
+  'трансформатор силовой сухой 1000 кВА',
+  'Воздуховод оцинкованный d=200 толщина 3 мм',
+  'LED светильник 30W IP54',
+  'огнетушитель порошковый ОП-5',
+];
+const KIND = {
+  same: ['same', 'Совпадает'],
+  analog: ['analog', 'Аналог / замена'],
+  unverified: ['unverified', 'Не проверено'],
+  text: ['text', 'Похоже по тексту'],
+};
+const LEVEL = { hard: 'жёсткая', soft: 'мягкая', info: 'справочно' };
+const REASON = {
+  unknown_category: 'категория не распознана',
+  category_absent: 'таких позиций в истории нет',
+  hard_mismatch: 'не проходят жёсткие правила замены',
+  low_score: 'оценка ниже порога',
+  unverified: 'похожие есть, но жёсткие характеристики не сравнить',
+  dismissed: 'похожие по тексту есть, но их отклонили как другой товар',
+};
+const VERDICT = { same: 'та же позиция', analog: 'подходит на замену', other: 'другой товар' };
+// A specialist's verdict on a candidate for the query's typical position (golden card)
+const DECISION = { same: 'та же позиция', analog: 'аналог', not_analog: 'не подходит', unclear: 'пропустить' };
+let current = '';
+// What the specialist corrected in the understanding of the current query; reset by a new query
+let correction = { category: null, values: {} };
+let categories = [];  // what the category may be changed to, by group
+let editing = false;  // the full list of the category's attributes is open to correct
+let last = null;  // the result shown, re-rendered when that list opens or closes
+const corrected = () => correction.category !== null || Object.keys(correction.values).length > 0;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const num = x => x.toFixed(2).replace('.', ',');
+const price = p => p == null ? 'цена не указана' : p.toLocaleString('ru-RU') + ' ₽';
+
+// A value the choice model read from the name, not the rules: shown so a buyer knows whom to trust
+const AI = '<span class="ai" title="значение выбрала модель из ряда справочника, код проверил его по тексту">ИИ</span>';
+const ai = c => c.query_by_llm || c.candidate_by_llm ? ' ' + AI : '';
+
+// What a buyer must look at: everything that is not exactly as asked, and what nobody checked. Shown on the card.
+function issues(c) {
+  const better = c.matches.filter(m => !m.exact)
+    .map(m => `<span class="chip c-ok" title="лучше требуемого">↑ ${esc(m.name)}: ${esc(m.candidate)} вместо ${esc(m.query)}${ai(m)}</span>`);
+  const hard = c.differences.filter(d => d.level === 'hard')
+    .map(d => `<span class="chip c-bad" title="жёсткое отличие">✗ ${esc(d.name)}: ${esc(d.candidate)} ≠ ${esc(d.query)}${ai(d)}</span>`);
+  const soft = c.differences.filter(d => d.level !== 'hard')
+    .map(d => `<span class="chip c-warn" title="мягкое отличие: снижает оценку">~ ${esc(d.name)}: ${esc(d.candidate)} вместо ${esc(d.query)}${ai(d)}</span>`);
+  const missing = c.missing.length
+    ? [`<span class="chip c-warn" title="в названии позиции не указано">? нет в позиции: ${esc(c.missing.map(m => m.name).join(', '))}</span>`] : [];
+  const unchecked = c.unchecked.length
+    ? [`<span class="chip c-warn" title="система эти характеристики не читает — проверьте сами">? проверьте: ${esc(c.unchecked.join(', '))}</span>`] : [];
+  return [...hard, ...soft, ...better, ...missing, ...unchecked].join('');
+}
+
+// What is exactly as asked: behind «подробнее», it only confirms the badge.
+function matches(c) {
+  return c.matches.filter(m => m.exact)
+    .map(m => `<span class="chip c-ok">✓ ${esc(m.name)}: ${esc(m.candidate)}${ai(m)}</span>`).join('');
+}
+
+function actions(c) {
+  return `<div class="actions" title="Оценка специалиста: пойдёт в золотую карточку запроса">${Object.entries(DECISION).map(([d, label]) =>
+    `<button type="button" class="act${c.confirmed === d ? ' on' : ''}" data-id="${c.id}" data-decision="${d}">${label}</button>`).join('')}</div>`;
+}
+
+function card(c, reject, why) {
+  const [cls, label] = reject ? ['reject', 'Ближайшая, не аналог'] : KIND[c.kind] || ['text', 'Похоже по тексту'];
+  const b = c.breakdown;
+  const problems = issues(c);
+  const agreed = c.matches.filter(m => m.exact).length;
+  return `<div class="card ${cls}">
+    <div class="head"><div><span class="badge b-${cls}">${label}</span>${c.confirmed ? `<span class="badge b-confirmed">✔ подтвердил специалист</span>` : ''}</div>
+      <span class="price">${price(c.price)}</span></div>
+    <span class="name">${esc(c.name)}</span>
+    ${c.confirmed && why ? `<div class="why">Специалист: «${esc(why)}»</div>` : ''}
+    ${problems ? `<div class="issues">${problems}</div>`
+      : c.kind === 'text' ? '<div class="note">Категория не распознана — характеристики не сравнивались.</div>'
+      : agreed ? `<div class="fine">✓ всё совпадает (${agreed})</div>` : ''}
+    ${c.confirmed && c.differences.some(d => d.level === 'hard') ? '<div class="note error">Специалист подтвердил вопреки жёсткому правилу — повод пересмотреть правило.</div>' : ''}
+    <div class="foot">
+      <details class="more"><summary>${agreed && problems ? `✓ ${agreed} совпадает · ` : ''}оценка ${num(c.score)}</summary>
+        ${agreed ? `<div>${matches(c)}</div>` : ''}
+        <div class="meta">строка ${c.row} · оценка ${num(c.score)}<span class="bar"><i style="width:${Math.round(c.score * 100)}%"></i></span>
+          = текст ${num(b.text)} + признаки ${num(b.features)} + категория ${num(b.category)}${b.penalties ? ' − штрафы ' + num(-b.penalties) : ''}</div>
+        ${c.verdict_by_llm ? `<div class="note"><span class="ai" title="правила не отсекли позицию, но и не подтвердили: решение модели">ИИ</span> проверка: ${VERDICT[c.verdict_by_llm] || esc(c.verdict_by_llm)}</div>` : ''}
+        ${c.foreign ? '<div class="note">Из другой категории: найдена по тексту, характеристики прочитаны правилами запроса из названия.</div>' : ''}
+      </details>
+      ${actions(c)}
+    </div>
+  </div>`;
+}
+
+function golden(g) {
+  if (!g) return '';
+  const ref = g.reference
+    ? `эталон ${esc(g.reference.source.toUpperCase())} <b>${esc(g.reference.code)}</b> «${esc(g.reference.name)}»`
+    : 'эталона в КСР с теми же характеристиками нет';
+  const counts = Object.entries(DECISION).map(([d, label]) => [label, g.links.filter(l => l.decision === d).length])
+    .filter(([, n]) => n).map(([label, n]) => `${label}: ${n}`).join(', ');
+  return `<details class="more golden"><summary>★ Золотая карточка №${g.id} · ${counts || 'решений нет'}</summary>
+    <div class="note">Создана запросом «${esc(g.name)}»; ${ref}.</div>
+    <ul class="links">${g.links.map(l => `<li>строка ${l.row} — <b>${DECISION[l.decision]}</b>: ${esc(l.name)}${l.note ? ` <span class="note">— «${esc(l.note)}»</span>` : ''}</li>`).join('')}</ul></details>`;
+}
+
+const AI_CATEGORY = '<span class="ai" title="слова-признаки не сработали: вид продукции выбрала модель из ближайших по написанию и по смыслу">ИИ</span>';
+const NOT_STATED = '';  // the select value of «не указано»
+const AS_READ = '=';  // a value read from the query that is not an item of the series
+
+function picker(r) {
+  const groups = [...new Set(categories.map(c => c.group))];
+  return `<select id="category" aria-label="Сменить категорию">
+    <option value="">${r.category ? 'сменить категорию…' : 'выбрать категорию…'}</option>
+    ${groups.map(g => `<optgroup label="${esc(g)}">${categories.filter(c => c.group === g).map(c =>
+      `<option value="${esc(c.code)}"${c.code === r.category_code ? ' disabled' : ''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}
+  </select>`;
+}
+
+// One filter of the category: the value as read or set, what else it may be, how strict it is and who read it
+function facet(f) {
+  const stated = f.value !== null;
+  const who = f.source === 'specialist' ? '<span class="tag who">вы</span>' : f.source === 'llm' ? AI : '';
+  const level = `<span class="tag ${f.level}" title="${f.level === 'hard' ? 'отличие отсекает позицию' : f.level === 'soft' ? 'отличие снижает оценку' : 'в сравнении не участвует'}">${LEVEL[f.level] || f.level}</span>`;
+  let control;
+  if (f.options.length || stated) {
+    const items = [
+      stated && f.option === null ? `<option value="${AS_READ}" selected>${esc(f.value)}</option>` : '',
+      ...f.options.map(o => `<option value="${esc(o.id)}"${o.id === f.option ? ' selected' : ''}>${esc(o.label)}</option>`),
+      `<option value="${NOT_STATED}"${stated ? '' : ' selected'}>— не указано</option>`,
+    ];
+    const cls = f.source === 'specialist' ? 'fixed' : stated ? 'set' : '';
+    control = `<select class="${cls}" data-facet="${esc(f.code)}" aria-label="${esc(f.name)}">${items.join('')}</select>`;
+  } else {
+    control = `<span class="empty">${f.level === 'info' ? 'не указано · справочно' : 'не указано · значений в справочнике нет'}</span>`;
+  }
+  const note = f.declined ? '<span class="tag" title="написано в форме, которую система не читает: найденное по ней не подтверждено">не прочитано</span>'
+    : !stated && f.level === 'hard' ? '<span class="tag gap" title="жёсткая характеристика не указана: подойдёт любое значение — уточните">уточнить</span>' : '';
+  return `<span class="fname">${esc(f.name)}</span>${control}<span class="tags">${note}${level}${who}</span>`;
+}
+
+// The values read, as a shop shows chosen filters; hard ones left open are worth asking about
+function chips(r) {
+  const stated = r.facets.filter(f => f.value !== null).map(f => {
+    const cls = f.source === 'specialist' ? ' c-info' : f.declined ? ' c-warn' : '';
+    return `<span class="chip${cls}" title="${esc(f.name)}${f.declined ? ' — не прочитано' : ''}">${esc(f.value)}${f.source === 'llm' ? ' ' + AI : ''}</span>`;
+  });
+  const ask = r.facets.filter(f => f.value === null && f.level === 'hard');
+  if (ask.length) {
+    stated.push(`<button type="button" class="chip c-warn" data-edit title="не указано: ${esc(ask.map(f => f.name).join(', '))} — подойдёт любое значение">уточнить ${ask.length}</button>`);
+  }
+  return stated.join('') || '<span class="note">характеристики не прочитаны — сравнение по тексту</span>';
+}
+
+function understood(r) {
+  if (!r.category) {
+    return `<div class="crumbs"><span class="note">Категория не распознана — поиск по тексту.</span> ${picker(r)}</div>`;
+  }
+  const by = r.category_source === 'specialist' ? ' <span class="tag who">выбрали вы</span>' : r.category_source === 'llm' ? ' ' + AI_CATEGORY : '';
+  const tools = `<div class="u-tools">
+      ${corrected() ? '<button type="button" class="linkish" id="reset">↺ как прочитано</button>' : ''}
+      <button type="button" class="linkish" data-edit>${editing ? 'свернуть' : '✎ изменить'}</button>
+      ${editing ? `<a href="/knowledge#${encodeURIComponent(r.category_code)}">правила категории →</a>` : ''}</div>`;
+  const head = `<div class="u-head"><div class="crumbs"><span class="group">${esc(r.group || '')}</span><span class="sep">›</span><b>${esc(r.category)}</b>${by}
+    ${editing ? picker(r) : ''}</div>${tools}</div>`;
+  if (!editing) return `${head}<div>${chips(r)}</div>`;
+  const stated = r.facets.filter(f => f.value !== null);
+  const open = r.facets.filter(f => f.value === null);
+  return `${head}<div class="facets">
+      <div class="title">Указано в запросе · ${stated.length}</div>
+      ${stated.map(facet).join('') || '<span class="note" style="grid-column:1/-1">Ни одной характеристики не прочитано.</span>'}
+      ${open.length ? `<div class="title">Можно указать · ${open.length}</div>${open.map(facet).join('')}` : ''}
+    </div>`;
+}
+
+function render(r) {
+  last = r;
+  $('examples').hidden = true;
+  const spelled = r.spelled ? `<div class="didyou">Возможно, вы имели в виду: <a href="#" id="spelled">${esc(r.spelled)}</a></div>` : '';
+  $('understood').innerHTML = `${spelled}<div class="panel">${understood(r)}${golden(r.card)}</div>`;
+
+  const nf = r.explain_not_found;
+  const why = Object.fromEntries((r.card?.links || []).map(l => [l.position_id, l.note]));
+  $('result').innerHTML = `<div class="panel">
+    ${nf ? `<div class="notfound"><b>${nf.reason === 'unverified' ? 'Не подтверждено' : 'Не найдено'}</b> — ${esc(REASON[nf.reason] || nf.reason)}.<div style="margin-top:6px">${esc(nf.message)}</div></div>
+      ${nf.closest && nf.reason !== 'unverified' ? card(nf.closest, true) : ''}` : ''}
+    ${r.candidates.map(c => card(c, false, why[c.id])).join('')}
+  </div>`;
+}
+
+async function search(query) {
+  if (query !== current) {
+    correction = { category: null, values: {} };
+    editing = false;
+  }
+  current = query;
+  $('query').value = query;
+  $('submit').disabled = true;
+  try {
+    const response = await fetch('/api/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, correction: corrected() ? correction : null }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.trace_id ? `${body.detail} (trace_id ${body.trace_id})` : body.detail);
+    render(body);
+  } catch (error) {
+    $('understood').innerHTML = '';
+    $('result').innerHTML = `<div class="panel error">${esc(error.message)}</div>`;
+  } finally {
+    $('submit').disabled = false;
+  }
+}
+
+async function decide(button) {
+  document.querySelectorAll('.act').forEach(b => { b.disabled = true; });
+  try {
+    const response = await fetch('/api/decisions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: current, position_id: Number(button.dataset.id), decision: button.dataset.decision,
+        correction: corrected() ? correction : null,
+      }),
+    });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    await search(current);
+  } catch (error) {
+    $('result').insertAdjacentHTML('afterbegin', `<div class="panel error">${esc(error.message)}</div>`);
+  }
+}
+
+$('result').addEventListener('click', e => { if (e.target.matches('.act')) decide(e.target); });
+// A correction of the understanding re-runs the search with it
+$('understood').addEventListener('change', e => {
+  if (e.target.id === 'category' && e.target.value) {
+    correction = { category: e.target.value, values: {} };  // the attributes of another category are other
+  } else if (e.target.dataset.facet && e.target.value !== AS_READ) {
+    correction.values[e.target.dataset.facet] = e.target.value === NOT_STATED ? null : e.target.value;
+  } else return;
+  search(current);
+});
+$('understood').addEventListener('click', e => {
+  if (e.target.id === 'spelled') {
+    e.preventDefault();
+    search(e.target.textContent);
+    return;
+  }
+  if (e.target.closest('[data-edit]')) {
+    editing = !editing;
+    render(last);
+    return;
+  }
+  if (e.target.id !== 'reset') return;
+  correction = { category: null, values: {} };
+  search(current);
+});
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const active = $('suggest').querySelector('.opt.active');
+  if (active) return pick(active);
+  hideSuggestions();
+  search($('query').value);
+});
+
+// Suggestions while typing: the query with its typing mistakes fixed, its last word finished, the categories
+// it names and the names of the history that hold it
+let typed = null;  // the request for the text being typed; a newer one aborts it
+let typing = 0;
+function hideSuggestions() {
+  clearTimeout(typing);
+  typed?.abort();
+  $('suggest').hidden = true;
+  $('suggest').innerHTML = '';
+  $('query').setAttribute('aria-expanded', 'false');
+}
+function fixed(s) {
+  let html = esc(s.text);
+  for (const f of s.fixes) html = html.replace(esc(f.meant), `<b>${esc(f.meant)}</b>`);
+  return html;
+}
+async function suggest(query) {
+  typed?.abort();
+  typed = new AbortController();
+  try {
+    const s = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`, { signal: typed.signal }).then(r => r.json());
+    const option = (q, html, data = '') =>
+      `<button type="button" class="opt" role="option" data-query="${esc(q)}"${data}>${html}</button>`;
+    const section = (label, options) => options.length ? `<div class="label">${label}</div>${options.join('')}` : '';
+    const html = [
+      section('Исправить опечатку', s.fixes.length ? [option(s.text, fixed(s))] : []),
+      section('Дописать', s.completions.map(w => option(w, esc(w), ' data-fill'))),
+      section('Искать в категории', s.categories.map(c =>
+        option(s.text, `→ ${esc(c.name)} <span class="muted">· ${esc(c.group || '')}</span>`, ` data-category="${esc(c.code)}"`))),
+      section('Из истории закупок', s.names.map(n => option(n, esc(n)))),
+    ].join('');
+    $('suggest').innerHTML = html;
+    $('suggest').hidden = !html || document.activeElement !== $('query');
+    $('query').setAttribute('aria-expanded', String(!$('suggest').hidden));
+  } catch (error) {
+    if (error.name !== 'AbortError') hideSuggestions();
+  }
+}
+$('query').addEventListener('input', () => {
+  clearTimeout(typing);
+  const query = $('query').value;
+  if (query.trim().length < 3) return hideSuggestions();
+  typing = setTimeout(() => suggest(query), 150);
+});
+$('query').addEventListener('keydown', e => {
+  const options = [...$('suggest').querySelectorAll('.opt')];
+  if (e.key === 'Escape') return hideSuggestions();
+  if ($('suggest').hidden || !options.length || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  const at = options.findIndex(o => o.classList.contains('active'));
+  // -1 is the text as typed: the arrows walk the options and back to it
+  const next = (at + 1 + (e.key === 'ArrowDown' ? 1 : -1) + options.length + 1) % (options.length + 1) - 1;
+  options.forEach((o, i) => o.classList.toggle('active', i === next));
+  options[next]?.scrollIntoView({ block: 'nearest' });
+});
+$('query').addEventListener('blur', hideSuggestions);
+$('suggest').addEventListener('mousedown', e => e.preventDefault());  // keep the focus: a click picks first
+$('suggest').addEventListener('click', e => {
+  const option = e.target.closest('.opt');
+  if (option) pick(option);
+});
+// A finished word goes on being typed; a category is fixed the way a correction of the understanding fixes it
+function pick(option) {
+  const query = option.dataset.query.trim();
+  hideSuggestions();
+  if (option.hasAttribute('data-fill')) {
+    $('query').value = `${query} `;
+    $('query').dispatchEvent(new Event('input'));
+    return;
+  }
+  if (option.dataset.category) {
+    current = query;
+    correction = { category: option.dataset.category, values: {} };
+    editing = false;
+  }
+  search(query);
+}
+$('examples').innerHTML = EXAMPLES.map(q => `<button type="button" class="ex">${esc(q)}</button>`).join('');
+$('examples').addEventListener('click', e => { if (e.target.matches('.ex')) search(e.target.textContent); });
+
+fetch('/api/categories').then(r => r.json()).then(list => { categories = list; }).catch(() => {});
+fetch('/api/stats').then(r => r.json()).then(s => {
+  $('stats').innerHTML = `<details><summary>База: ${s.positions} позиций · справочник ${esc(s.knowledge_version)}</summary>
+    С категорией ${s.categorized}, с характеристиками ${s.with_attributes}.
+    Справочник ${esc(s.knowledge_version)}: ${s.categories} категорий, экстракторы для ${s.attributes_with_extractor} из ${s.attributes} характеристик.
+    ${s.llm === 'off' ? '' : `ИИ узнаёт категорию запроса, если слова-признаки не сработали, и читает ещё ${s.hard_attributes_read_by_llm} жёстких (${s.llm === 'live' ? 'модель' : 'кэш ответов'}), прочитано в ${s.with_llm_readings} позициях; проверяет кандидатов, которых правила не отсекли, но и не подтвердили.`}
+    ${s.with_embeddings ? `Поиск по смыслу: векторы ${s.with_embeddings} позиций.` : 'Поиск по смыслу выключен: только по написанию.'}
+    Порог «не найдено»: ${num(s.threshold)}.</details>${s.warnings.map(w => `<div class="error">${esc(w)}</div>`).join('')}`;
+}).catch(() => {});
+</script>
+</body>
+</html>

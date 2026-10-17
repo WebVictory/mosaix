@@ -1,0 +1,35 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    ports: ["${DB_PORT:-5434}:5432"]   # exposed for the CLI, tests and psql
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # An empty volume starts from the dump: the parsed base with its vectors (README, «Запуск»)
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ./data/dump:/dump:ro
+    environment:
+      POSTGRES_DB: analog
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-analog}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d analog"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: .
+    ports: ["${API_PORT:-8000}:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-analog}@db:5432/analog
+      # auto — live with the key: the model is asked what data/llm does not keep yet
+      ANALOG_LLM: ${ANALOG_LLM:-auto}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      # The procurement history is not in the image: data/positions.xlsx (a copy of База_позиций_тестовое.xlsx)
+      - ${POSITIONS_FILE:-./data/positions.xlsx}:/app/data/positions.xlsx:ro
+      # The model's answers: read in cache mode, appended to in live mode
+      - ./data/llm:/app/data/llm
+
+volumes:
+  pgdata:

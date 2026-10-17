@@ -116,13 +116,34 @@ def slug(name: str) -> str:
 _NUMBERING = re.compile(r"^\s*\d+(\.\d+)*[.)]\s*")
 _TIMES = re.compile(r"(?<=\d)(?:\s*[xх×*]\s*|\s+на\s+)(?=\d)")  # one spelling of a size: «7*1.5», «7 на 1.5»
 _DECIMAL_COMMA = re.compile(r"(?<=\d),(?=\d)")
+_TWINS = dict(zip("abcehkmoptxy", "авсенкмортху", strict=True))  # lower case of letters alike in upper case
+_TO_CYRILLIC = str.maketrans(_TWINS)
+_TO_LATIN = str.maketrans({c: lat for lat, c in _TWINS.items()})
+_WORD = re.compile(r"[^\W_]+")
+_LATIN_LETTER = re.compile(r"[a-z]")
+_CYRILLIC_LETTER = re.compile(r"[а-я]")
+
+
+def _one_alphabet(word: re.Match[str]) -> str:
+    """«bвгнг» → «ввгнг», «хnv» → «xnv»: a word typed in two alphabets, where one of them has only the letters
+    the other spells alike, goes to the other; Cyrillic wins a tie."""
+    text = word.group()
+    latin, cyrillic = set(_LATIN_LETTER.findall(text)), set(_CYRILLIC_LETTER.findall(text))
+    if not latin or not cyrillic:
+        return text
+    if latin <= _TWINS.keys():
+        return text.translate(_TO_CYRILLIC)
+    if cyrillic <= set(_TWINS.values()):
+        return text.translate(_TO_LATIN)
+    return text
 
 
 def normalize(text: str) -> str:
-    """Lower case, ё → е, no leading «1.2)» numbering, «7 х 1,5», «7 на 1,5», «семь на полтора» → «7x1.5»,
-    single spaces."""
+    """Lower case, ё → е, no leading «1.2)» numbering, a word in one alphabet, «7 х 1,5», «7 на 1,5»,
+    «семь на полтора» → «7x1.5», single spaces."""
     text = spoken_sizes(text.lower().replace("ё", "е").replace("’", "'"))
-    text = _DECIMAL_COMMA.sub(".", _TIMES.sub("x", _NUMBERING.sub("", text)))
+    text = _WORD.sub(_one_alphabet, _NUMBERING.sub("", text))
+    text = _DECIMAL_COMMA.sub(".", _TIMES.sub("x", text))
     return " ".join(text.split())
 
 

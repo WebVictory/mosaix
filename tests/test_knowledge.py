@@ -46,6 +46,9 @@ def test_classifier(name: str, expected: str | None) -> None:
 
 def test_normalize_and_slug() -> None:
     assert normalize("  3.1. Ёмкость   ДЛЯ   воды ") == "емкость для воды"
+    assert normalize("BВГнг(А)-LS") == normalize("ВВГнг(А)-LS") == "ввгнг(а)-ls"  # Latin B in a Russian mark
+    assert normalize("ХNV-6081RЕ") == normalize("XNV-6081RE") == "xnv-6081re"  # Russian Х, Е in a model code
+    assert normalize("ip65 ип") == "ip65 ип"  # a word in one alphabet stays as it is
     assert slug("СКУД / турникет / шлагбаум") == "skud_turniket_shlagbaum"
 
 

@@ -17,16 +17,16 @@ from analog_search.domain.knowledge import (
     normalize,
     slug,
 )
+from analog_search.domain.positions import parse
 from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
-from analog_search.services.knowledge import parse
 
 RESEARCH = PROJECT_ROOT / "research"
 
-CABLE = Category("kabel_silovoy", "кабель силовой", "кабели и провода", triggers=("ввг", "кабель силовой"),
+CABLE = Category(code="kabel_silovoy", name="кабель силовой", group="кабели и провода", triggers=("ввг", "кабель силовой"),
                  anti_triggers=("кабель-канал",))  # fmt: skip
-CHANNEL = Category("kabel_kanal", "кабель-канал", "кабеленесущие системы", triggers=("кабель-канал",))
-PIPE_OTHER = Category("truba_prochaya", "труба (прочая)", "трубы", triggers=("труба",))
-PIPE_STEEL = Category("truba_stalnaya", "труба стальная", "трубы", triggers=("стальная",))
+CHANNEL = Category(code="kabel_kanal", name="кабель-канал", group="кабеленесущие системы", triggers=("кабель-канал",))
+PIPE_OTHER = Category(code="truba_prochaya", name="труба (прочая)", group="трубы", triggers=("труба",))
+PIPE_STEEL = Category(code="truba_stalnaya", name="труба стальная", group="трубы", triggers=("стальная",))
 
 
 @pytest.mark.parametrize(
@@ -88,7 +88,7 @@ def test_history_rows_get_category_and_service_flag() -> None:
 
 
 def test_catch_all_yields_to_a_category_named_by_its_head_noun() -> None:
-    gofra = Category("truba_gofrirovannaya", "труба гофрированная", "электромонтаж", triggers=("гофр",))
+    gofra = Category(code="truba_gofrirovannaya", name="труба гофрированная", group="электромонтаж", triggers=("гофр",))
 
     match = Classifier((PIPE_OTHER, gofra)).classify("Труба гофра ПВХ 25 мм")
 

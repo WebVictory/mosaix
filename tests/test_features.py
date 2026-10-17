@@ -6,8 +6,8 @@ import pytest
 
 from analog_search.domain.features import Extractors
 from analog_search.domain.knowledge import Classifier, Knowledge, normalize
+from analog_search.domain.positions import ParsedPosition
 from analog_search.domain.trigrams import similarity, trigrams
-from analog_search.repositories.knowledge import ParsedPosition
 
 
 def read(knowledge: Knowledge, text: str) -> tuple[str | None, dict]:

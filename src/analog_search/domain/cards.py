@@ -20,10 +20,10 @@ same values. It names the position for everyone, but is not a row of the history
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
 from typing import Protocol
 
 from analog_search.domain.features import Value
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import Category
 from analog_search.domain.matching import Assessment, Decision, Kind
 
@@ -36,8 +36,7 @@ def card_key(category: Category | None, values: dict[str, Value], text: str) -> 
     return f"{category.code if category else '-'}|{body}"
 
 
-@dataclass(frozen=True)
-class Link:
+class Link(Frozen):
     position_id: int
     row: int
     name: str
@@ -45,8 +44,7 @@ class Link:
     note: str | None = None  # why, in the specialist's words: «FRLS вместо LS: огнестойкий, не хуже»
 
 
-@dataclass(frozen=True)
-class Reference:
+class Reference(Frozen):
     """An ideal position from a reference book: КСР resource code and name."""
 
     source: str
@@ -54,8 +52,7 @@ class Reference:
     name: str
 
 
-@dataclass(frozen=True)
-class Card:
+class Card(Frozen):
     id: int
     key: str
     name: str
@@ -67,8 +64,7 @@ class Card:
         return next((link.decision for link in self.links if link.position_id == position_id), None)
 
 
-@dataclass(frozen=True)
-class Entry:
+class Entry(Frozen):
     """One verdict of a specialist: the query, how it was read, the row and what they said."""
 
     key: str
@@ -82,8 +78,7 @@ class Entry:
     knowledge_version: str | None = None
 
 
-@dataclass(frozen=True)
-class CardKey:
+class CardKey(Frozen):
     """What a card's query reads into with a knowledge release."""
 
     key: str
@@ -129,9 +124,9 @@ def confirm(assessment: Assessment, decision: Decision | None) -> Assessment:
     the disagreement is a reason to revise the rule, and the UI shows it."""
     match decision:
         case Decision.SAME:
-            return replace(assessment, kind=Kind.SAME, confirmed=decision)
+            return assessment.model_copy(update={"kind": Kind.SAME, "confirmed": decision})
         case Decision.ANALOG:
-            return replace(assessment, kind=Kind.ANALOG, confirmed=decision)
+            return assessment.model_copy(update={"kind": Kind.ANALOG, "confirmed": decision})
         case Decision.NOT_ANALOG:
-            return replace(assessment, confirmed=decision)
+            return assessment.model_copy(update={"confirmed": decision})
     return assessment

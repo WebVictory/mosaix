@@ -14,17 +14,24 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
 from analog_search.domain.features import Extractors
-from analog_search.domain.knowledge import SERVICE_FLAG, Category, Classifier, Knowledge, normalize
+from analog_search.domain.knowledge import SERVICE_FLAG, Category, Knowledge
+from analog_search.domain.positions import ParsedPosition, PositionRecord, carried, parse, reparsed
 from analog_search.domain.reading import ChoiceReading, Embedder, ReaderError
-from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
-from analog_search.repositories.knowledge import ParsedPosition
 
 log = logging.getLogger(__name__)
+
+
+class KnowledgeFiles(Protocol):
+    """The specialist's knowledge as files: what an empty base is seeded with."""
+
+    @property
+    def location(self) -> str: ...
+
+    def read(self) -> Knowledge: ...
 
 
 class KnowledgeStore(Protocol):
@@ -41,13 +48,15 @@ class PositionStore(Protocol):
     def stored(self) -> dict[str, list[ParsedPosition]]: ...
 
 
+PositionReader = Callable[[Path], list[PositionRecord]]  # rows of a procurement history workbook
 Reading = Callable[[Knowledge], ChoiceReading | None]  # the choice model over a release's categories
 
 
 class KnowledgeService:
     def __init__(
         self,
-        knowledge_dir: Path,
+        files: KnowledgeFiles,
+        read_positions: PositionReader,
         knowledge_store: KnowledgeStore,
         position_store: PositionStore,
         reading: Reading = lambda _: None,
@@ -55,7 +64,8 @@ class KnowledgeService:
         embedder: Embedder | None = None,
         embedding_model: str = "",
     ):
-        self._dir = knowledge_dir
+        self._files = files
+        self._read_positions = read_positions
         self._knowledge = knowledge_store
         self._positions = position_store
         self._reading = reading
@@ -64,20 +74,20 @@ class KnowledgeService:
         self._embedding_model = embedding_model
 
     def load_knowledge(self) -> tuple[Knowledge, dict[str, int] | None]:
-        """Import the yaml state as a release and activate it, over the specialists' releases; counts are None
+        """Import the files as a release and activate it, over the specialists' releases; counts are None
         if it was stored already."""
-        knowledge = yaml_files.read(self._dir)
-        return knowledge, self._knowledge.save(knowledge, note=str(self._dir))
+        knowledge = self._files.read()
+        return knowledge, self._knowledge.save(knowledge, note=self._files.location)
 
     def active(self) -> Knowledge:
-        """The release in effect; an empty base is seeded from the yaml files."""
+        """The release in effect; an empty base is seeded from the files."""
         knowledge = self._knowledge.active()
         return knowledge if knowledge is not None else self.load_knowledge()[0]
 
     def load_positions(self, path: Path) -> dict[str, int]:
         """Parse the workbook with the active knowledge and upsert the rows."""
         knowledge = self.active()
-        positions = parse(knowledge, positions_xlsx.read(path))
+        positions = parse(knowledge, self._read_positions(path))
         counts = self._save(knowledge, path.name, positions)
         # No vectors to be had (no key, no cache) keeps the stored ones: those of a restored dump
         if self._embedder is not None and (vectors := embed(positions, self._embedder)):
@@ -98,51 +108,6 @@ class KnowledgeService:
         if reading is not None:
             positions, counts = read_hard(knowledge, positions, reading, self._workers)
         return {**self._positions.save(source, knowledge.version, positions), **counts}
-
-
-def reparsed(knowledge: Knowledge, stored: list[ParsedPosition]) -> list[ParsedPosition]:
-    """Stored rows parsed by the rules of another release, from their names."""
-    return parse(knowledge, [positions_xlsx.PositionRecord(p.source_row, p.name, p.price) for p in stored])
-
-
-def carried(parsed: list[ParsedPosition], stored: list[ParsedPosition]) -> list[ParsedPosition]:
-    """What the model read before, added where the rules still leave it unread in the same category."""
-    before = {p.source_row: p for p in stored}
-    result = []
-    for position in parsed:
-        old = before.get(position.source_row)
-        if old is None or not old.read_by_llm or old.category_code != position.category_code:
-            result.append(position)
-            continue
-        kept = {code: old.attributes[code] for code in old.read_by_llm if code not in position.attributes}
-        result.append(
-            replace(position, attributes={**position.attributes, **kept}, read_by_llm=tuple(sorted(kept)))
-            if kept
-            else position
-        )
-    return result
-
-
-def parse(knowledge: Knowledge, records: list[positions_xlsx.PositionRecord]) -> list[ParsedPosition]:
-    classifier = Classifier(knowledge.categories)
-    extractors = Extractors(knowledge.categories)
-    parsed = []
-    for record in records:
-        match = classifier.classify(record.name)
-        category = match.category if match else None
-        text = normalize(record.name)
-        parsed.append(
-            ParsedPosition(
-                source_row=record.row,
-                name=record.name,
-                price=record.price,
-                search_text=text,
-                category_code=category.code if category else None,
-                attributes=extractors.extract(category, text) if category else {},
-                flags=(SERVICE_FLAG,) if category and category.is_service else (),
-            )
-        )
-    return parsed
 
 
 def embed(positions: list[ParsedPosition], embedder: Embedder) -> dict[int, list[float]]:
@@ -171,7 +136,9 @@ def read_hard(
         except ReaderError as error:
             log.warning("row %s: %s", position.source_row, error)
             return None
-        return replace(position, attributes={**position.attributes, **values}, read_by_llm=tuple(sorted(values)))
+        return position.model_copy(
+            update={"attributes": {**position.attributes, **values}, "read_by_llm": tuple(sorted(values))}
+        )
 
     asked = {
         i: category

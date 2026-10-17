@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import replace
 
 import pytest
 from sqlalchemy import delete, select, update
@@ -13,10 +12,11 @@ from analog_search.domain.cards import CardKey, Entry, Reference, UnknownPositio
 from analog_search.domain.editing import Edit, Field, fingerprint
 from analog_search.domain.knowledge import Category, Knowledge
 from analog_search.domain.matching import Decision
+from analog_search.domain.positions import ParsedPosition
 from analog_search.infrastructure.knowledge import yaml_files
 from analog_search.repositories.cards import CardRepository
 from analog_search.repositories.database import Database
-from analog_search.repositories.knowledge import KnowledgeRepository, ParsedPosition, PositionRepository
+from analog_search.repositories.knowledge import KnowledgeRepository, PositionRepository
 from analog_search.repositories.orm import (
     DecisionRow,
     GoldenCardRow,
@@ -32,7 +32,10 @@ SOURCE = "pytest.xlsx"
 KNOWLEDGE = Knowledge(
     version="pytest-1",
     sha256="x",
-    categories=(Category("cables", "кабели", None), Category("cable", "кабель", "кабели", triggers=("кабель",))),
+    categories=(
+        Category(code="cables", name="кабели", group=None),
+        Category(code="cable", name="кабель", group="кабели", triggers=("кабель",)),
+    ),
 )
 
 
@@ -53,7 +56,15 @@ def db() -> Iterator[Database]:
 
 
 def _position(row: int, category: str | None) -> ParsedPosition:
-    return ParsedPosition(row, f"строка {row}", 10.0, f"строка {row}", category, {}, ())
+    return ParsedPosition(
+        source_row=row,
+        name=f"строка {row}",
+        price=10.0,
+        search_text=f"строка {row}",
+        category_code=category,
+        attributes={},
+        flags=(),
+    )
 
 
 def test_new_release_becomes_active_and_is_stored_once(db: Database) -> None:
@@ -61,7 +72,7 @@ def test_new_release_becomes_active_and_is_stored_once(db: Database) -> None:
 
     assert repository.save(KNOWLEDGE) == {"categories": 2, "category_attributes": 0}
     assert repository.active_version() == "pytest-1"
-    repository.save(replace(KNOWLEDGE, version="pytest-2"))
+    repository.save(KNOWLEDGE.model_copy(update={"version": "pytest-2"}))
     assert repository.save(KNOWLEDGE) is None
     assert repository.active_version() == "pytest-1"
 
@@ -84,10 +95,12 @@ def test_positions_upsert_keeps_ids_and_drops_vanished_rows(db: Database) -> Non
 def test_model_readings_are_replaced_on_reload_and_reach_the_candidates(db: Database) -> None:
     KnowledgeRepository(db).save(KNOWLEDGE)
     repository = PositionRepository(db)
-    read = replace(_position(2, "cable"), attributes={"сечение": 50.0, "марка": "АС"}, read_by_llm=("сечение", "марка"))
+    read = _position(2, "cable").model_copy(
+        update={"attributes": {"сечение": 50.0, "марка": "АС"}, "read_by_llm": ("сечение", "марка")}
+    )
 
     assert repository.save(SOURCE, "pytest-1", [read, _position(3, "cable")])["read_by_llm"] == 2
-    repository.save(SOURCE, "pytest-1", [replace(read, read_by_llm=("марка",)), _position(3, "cable")])
+    repository.save(SOURCE, "pytest-1", [read.model_copy(update={"read_by_llm": ("марка",)}), _position(3, "cable")])
 
     candidates = {
         c.row: c
@@ -105,13 +118,22 @@ def test_verdicts_link_rows_to_one_card_and_stay_in_the_log(db: Database) -> Non
     assert first is not None and second is not None
 
     def entry(position_id: int, decision: Decision, note: str | None = None) -> Entry:
-        return Entry("pytest|cable", "pytest кабель", "cable", {"число_жил": 3.0}, position_id, decision, "тест", note)
+        return Entry(
+            key="pytest|cable",
+            query="pytest кабель",
+            category_code="cable",
+            values={"число_жил": 3.0},
+            position_id=position_id,
+            decision=decision,
+            author="тест",
+            note=note,
+        )
 
     cards.decide(entry(first, Decision.SAME))
     assert cards.decide(entry(second, Decision.UNCLEAR)) is None
     cards.decide(entry(second, Decision.ANALOG))
     card = cards.decide(entry(first, Decision.NOT_ANALOG, "не та марка"))
-    anchored = cards.anchor(card.id, Reference("ksr", "01.1", "Кабель"))
+    anchored = cards.anchor(card.id, Reference(source="ksr", code="01.1", name="Кабель"))
 
     assert [(k.row, k.decision, k.note) for k in anchored.links] == [
         (2, Decision.NOT_ANALOG, "не та марка"),
@@ -129,7 +151,7 @@ def test_the_active_release_reads_back_as_it_was_stored(db: Database) -> None:
     research = yaml_files.read(PROJECT_ROOT / "research")
     repository = KnowledgeRepository(db)
 
-    repository.save(replace(research, version="pytest-research"))
+    repository.save(research.model_copy(update={"version": "pytest-research"}))
     active = repository.active()
 
     assert active is not None and active.version == "pytest-research"
@@ -139,15 +161,22 @@ def test_the_active_release_reads_back_as_it_was_stored(db: Database) -> None:
 def test_edits_wait_in_the_draft_until_published_with_a_release(db: Database) -> None:
     repository = KnowledgeRepository(db)
     repository.save(KNOWLEDGE)
-    edit = Edit("cable", None, Field.TRIGGERS, ["кабель", "провод"], ["кабель"], author="pytest")
+    edit = Edit(
+        category="cable",
+        attribute=None,
+        field=Field.TRIGGERS,
+        value=["кабель", "провод"],
+        previous=["кабель"],
+        author="pytest",
+    )
 
-    first, second = repository.add(edit), repository.add(replace(edit, value=["провод"]))
+    first, second = repository.add(edit), repository.add(edit.model_copy(update={"value": ["провод"]}))
     assert repository.discard(second.id) and not repository.discard(second.id)
     assert [(e.id, e.value, e.previous) for e in repository.edits() if e.author == "pytest"] == [
         (first.id, ["кабель", "провод"], ["кабель"])
     ]
 
-    repository.publish(replace(KNOWLEDGE, version="pytest-2"), "pytest")
+    repository.publish(KNOWLEDGE.model_copy(update={"version": "pytest-2"}), "pytest")
 
     assert repository.active_version() == "pytest-2" and repository.edits() == []
     with db.session() as session:
@@ -157,7 +186,7 @@ def test_edits_wait_in_the_draft_until_published_with_a_release(db: Database) ->
 
 def test_stored_rows_come_back_with_their_category_and_readings(db: Database) -> None:
     KnowledgeRepository(db).save(KNOWLEDGE)
-    read = replace(_position(2, "cable"), attributes={"марка": "АС"}, read_by_llm=("марка",))
+    read = _position(2, "cable").model_copy(update={"attributes": {"марка": "АС"}, "read_by_llm": ("марка",)})
     PositionRepository(db).save(SOURCE, "pytest-1", [read, _position(3, None)])
 
     assert PositionRepository(db).stored()[SOURCE] == [read, _position(3, None)]
@@ -170,18 +199,31 @@ def test_cards_meeting_on_a_key_are_merged_into_the_older(db: Database) -> None:
     first, second = (cards.position_id(SOURCE, row) for row in (2, 3))
 
     def entry(key: str, position_id: int, decision: Decision) -> Entry:
-        return Entry(f"pytest|{key}", f"pytest {key}", "cable", {}, position_id, decision)
+        return Entry(
+            key=f"pytest|{key}",
+            query=f"pytest {key}",
+            category_code="cable",
+            values={},
+            position_id=position_id,
+            decision=decision,
+        )
 
     older = cards.decide(entry("a", first, Decision.SAME))
     cards.decide(entry("b", first, Decision.NOT_ANALOG))
     newer = cards.decide(entry("b", second, Decision.ANALOG))
-    cards.anchor(older.id, Reference("ksr", "01.1", "Кабель"))
+    cards.anchor(older.id, Reference(source="ksr", code="01.1", name="Кабель"))
 
-    traded = {older.id: CardKey("pytest|b", "cable", {}), newer.id: CardKey("pytest|a", "cable", {})}
+    traded = {
+        older.id: CardKey(key="pytest|b", category_code="cable", values={}),
+        newer.id: CardKey(key="pytest|a", category_code="cable", values={}),
+    }
     assert cards.rekey(traded, "pytest-1") == {"rekeyed": 2, "merged": 0}
     assert cards.card("pytest|b").id == older.id and cards.card("pytest|b").reference is None
 
-    assert cards.rekey({newer.id: CardKey("pytest|b", "cable", {})}) == {"rekeyed": 1, "merged": 1}
+    assert cards.rekey({newer.id: CardKey(key="pytest|b", category_code="cable", values={})}) == {
+        "rekeyed": 1,
+        "merged": 1,
+    }
     merged = cards.card("pytest|b")
     assert merged.id == older.id and cards.card("pytest|a") is None
     assert [(k.row, k.decision) for k in merged.links] == [(2, Decision.NOT_ANALOG), (3, Decision.ANALOG)]

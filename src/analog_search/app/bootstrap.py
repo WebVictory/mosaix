@@ -13,18 +13,25 @@ from analog_search.app.config import Settings
 from analog_search.domain.judging import Judge
 from analog_search.domain.knowledge import Knowledge
 from analog_search.domain.reading import ChoiceReader, ChoiceReading, Embedder, ReaderError
+from analog_search.domain.sources import SourceStore
 from analog_search.infrastructure import scoring_yaml
+from analog_search.infrastructure.knowledge import positions_xlsx
+from analog_search.infrastructure.knowledge.yaml_files import YamlKnowledge
 from analog_search.infrastructure.llm.cache import CachedReader
 from analog_search.infrastructure.llm.embeddings import CachedEmbedder, OpenRouterEmbedder
 from analog_search.infrastructure.llm.jev import JevReader
+from analog_search.infrastructure.sources.formats import formats
+from analog_search.infrastructure.sources.store import Downloader, ReleaseFiles
 from analog_search.repositories.cards import CardRepository, KsrReferences
 from analog_search.repositories.database import Database
 from analog_search.repositories.knowledge import KnowledgeRepository, PositionRepository
+from analog_search.repositories.memory import MemoryStore
 from analog_search.repositories.search import SearchRepository
 from analog_search.services.cards import CardService
 from analog_search.services.editor import KnowledgeEditor
 from analog_search.services.knowledge import KnowledgeService
 from analog_search.services.search import SearchService
+from analog_search.services.sources import SourceService
 
 
 @dataclass(frozen=True)
@@ -75,7 +82,8 @@ def knowledge_service(settings: Settings, db: Database, used: Models | None = No
     """Releases in the database (seeded from research/*.yaml), the history parsed with them; with the models,
     unread hard attributes are asked of the choice model and the names embedded."""
     return KnowledgeService(
-        settings.knowledge_dir,
+        YamlKnowledge(settings.knowledge_dir),
+        positions_xlsx.read,
         KnowledgeRepository(db),
         PositionRepository(db),
         lambda knowledge: choice_reading(settings, knowledge, used) if used else None,
@@ -111,7 +119,15 @@ def services(settings: Settings, db: Database) -> Services:
         PositionRepository(db),
         cards,
         search.config,
+        MemoryStore,
         settings.positions_file.name,
         settings.gold_queries,
     )
     return Services(search, CardService(search, cards, KsrReferences(db)), editor)
+
+
+def source_service(
+    settings: Settings, downloader: Downloader | None = None, store: SourceStore | None = None
+) -> SourceService:
+    """External taxonomies under settings.sources_dir: a downloader to fetch them, a store to load them."""
+    return SourceService(ReleaseFiles(settings.sources_dir), formats(settings.sources_dir, downloader), store)

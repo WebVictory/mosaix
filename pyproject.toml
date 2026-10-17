@@ -22,8 +22,10 @@ analog-search = "analog_search.app.cli:main"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "mypy>=2.4.0",
     "pytest>=8.0",
     "ruff>=0.17.0",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]
@@ -47,8 +49,23 @@ filterwarnings = [
 line-length = 120
 target-version = "py314"
 src = ["src", "tests"]
-extend-exclude = ["research/scripts"]
 
 [tool.ruff.lint]
 extend-select = ["B", "I", "SIM", "RUF", "UP"]
 ignore = ["RUF001", "RUF002", "RUF003"]  # Russian domain text
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.14"
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+
+[[tool.mypy.overrides]]
+module = ["openpyxl.*", "pgvector.*"]
+ignore_missing_imports = true

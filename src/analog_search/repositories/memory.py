@@ -4,16 +4,15 @@ for evaluation and tests."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 from typing import Any
 
 from analog_search.domain.cards import Card, CardKey, Entry, Link, Reference, UnknownPosition
 from analog_search.domain.editing import Edit
 from analog_search.domain.knowledge import SERVICE_FLAG, Knowledge
 from analog_search.domain.matching import Candidate, Decision
+from analog_search.domain.positions import ParsedPosition
 from analog_search.domain.trigrams import similarity, trigrams
 from analog_search.domain.vectors import cosine
-from analog_search.repositories.knowledge import ParsedPosition
 
 
 class MemoryStore:
@@ -35,7 +34,7 @@ class MemoryStore:
 
     def nearest(self, text: str, limit: int, vector: list[float] | None = None) -> list[Candidate]:
         ranked = self._ranked(text, vector, lambda _: True)
-        by_meaning = sorted((c for c in ranked if c.meaning is not None), key=lambda c: (-c.meaning, c.row))
+        by_meaning = sorted((c for c in ranked if c.meaning is not None), key=lambda c: (-(c.meaning or 0.0), c.row))
         return list({c.id: c for c in ranked[:limit] + by_meaning[:limit]}.values())
 
     def positions(self, ids: list[int], text: str, vector: list[float] | None = None) -> list[Candidate]:
@@ -96,16 +95,24 @@ class MemoryCards:
         self.log.append(entry)
         if entry.decision is Decision.UNCLEAR:
             return None
-        card = self._cards.get(entry.key) or Card(len(self._cards) + 1, entry.key, entry.query, entry.category_code)
-        link = Link(entry.position_id, entry.position_id, self._names[entry.position_id], entry.decision, entry.note)
+        card = self._cards.get(entry.key) or Card(
+            id=len(self._cards) + 1, key=entry.key, name=entry.query, category_code=entry.category_code
+        )
+        link = Link(
+            position_id=entry.position_id,
+            row=entry.position_id,
+            name=self._names[entry.position_id],
+            decision=entry.decision,
+            note=entry.note,
+        )
         links = sorted([*(k for k in card.links if k.position_id != entry.position_id), link], key=lambda k: k.row)
-        self._cards[entry.key] = replace(card, links=tuple(links))
+        self._cards[entry.key] = card.model_copy(update={"links": tuple(links)})
         self._when[card.id, entry.position_id] = len(self.log)
         return self._cards[entry.key]
 
     def anchor(self, card_id: int, reference: Reference) -> Card:
         key = next(key for key, card in self._cards.items() if card.id == card_id)
-        self._cards[key] = replace(self._cards[key], reference=reference)
+        self._cards[key] = self._cards[key].model_copy(update={"reference": reference})
         return self._cards[key]
 
     def cards(self) -> list[Card]:
@@ -129,8 +136,10 @@ class MemoryCards:
                         self._when[survivor.id, link.position_id] = self._when[card.id, link.position_id]
             merged += len(others)
             if key != survivor.key:
-                survivor = replace(survivor, key=key, category_code=keys[survivor.id].category_code, reference=None)
-            cards[key] = replace(survivor, links=tuple(sorted(latest.values(), key=lambda k: k.row)))
+                survivor = survivor.model_copy(
+                    update={"key": key, "category_code": keys[survivor.id].category_code, "reference": None}
+                )
+            cards[key] = survivor.model_copy(update={"links": tuple(sorted(latest.values(), key=lambda k: k.row))})
         self._cards = cards
         return {"rekeyed": len(keys), "merged": merged}
 
@@ -162,7 +171,7 @@ class MemoryKnowledge:
         return list(self._edits)
 
     def add(self, edit: Edit) -> Edit:
-        added = replace(edit, id=len(self._edits) + len(self._published) + 1)
+        added = edit.model_copy(update={"id": len(self._edits) + len(self._published) + 1})
         self._edits.append(added)
         return added
 

@@ -12,10 +12,10 @@ import pytest
 from analog_search.domain.features import Vocabulary
 from analog_search.domain.knowledge import Attribute, Category, Knowledge, normalize
 from analog_search.domain.matching import Kind
+from analog_search.domain.positions import ParsedPosition
 from analog_search.domain.reading import NONE, OTHER, Choice, ChoiceReading, Question, ReaderError, question, verify
 from analog_search.infrastructure.llm.cache import CachedReader
 from analog_search.infrastructure.llm.jev import JevReader
-from analog_search.repositories.knowledge import ParsedPosition
 from analog_search.repositories.memory import MemoryStore
 from analog_search.services.knowledge import read_hard
 from analog_search.services.search import Reason, SearchService, Source

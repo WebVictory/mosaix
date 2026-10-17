@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
+from pathlib import Path
+from typing import Protocol
+
+from analog_search.domain.frozen import Frozen
 
 
 class SourceKind(StrEnum):
@@ -18,14 +22,18 @@ class SourceKind(StrEnum):
     ETIM = "etim"
 
 
-@dataclass(frozen=True)
-class Release:
-    """One downloaded version of a source."""
+class Edition(Frozen):
+    """A version of a source as its publisher names it, and where it came from."""
 
     source: SourceKind
     version: str
-    published: date | None
-    url: str | None
+    published: date | None = None
+    url: str | None = None
+
+
+class Release(Edition):
+    """One downloaded edition: its files and their checksum."""
+
     files: tuple[str, ...]  # file names inside the release directory
     sha256: str  # over all files, in order
 
@@ -154,3 +162,21 @@ class EtimDump:
     values: dict[str, str] = field(default_factory=dict)  # EV000005 → Thread holding
     class_features: list[EtimClassFeature] = field(default_factory=list)
     class_feature_values: list[tuple[int, str, int]] = field(default_factory=list)  # (class feature id, value, sort)
+
+
+class SourceStore(Protocol):
+    def is_loaded(self, release: Release) -> bool: ...
+    def save_ksr(self, release: Release, dump: KsrDump) -> dict[str, int]: ...
+    def save_okpd2(self, release: Release, nodes: list[Okpd2Node]) -> dict[str, int]: ...
+    def save_ktru(self, release: Release, positions: list[KtruPosition]) -> dict[str, int]: ...
+    def save_etim(self, release: Release, dump: EtimDump) -> dict[str, int]: ...
+
+
+class SourceFormat(Protocol):
+    """How one taxonomy is downloaded and how a release of it is read into the store."""
+
+    def fetch(self) -> Path:
+        """Download the newest freely available release; the directory it was written to."""
+        ...
+
+    def load(self, directory: Path, release: Release, store: SourceStore) -> dict[str, int]: ...

@@ -26,6 +26,7 @@ uv run analog-search serve                            # http://127.0.0.1:8000
 uv run analog-search --help                           # остальные команды: search, decisions, knowledge, sources
 
 uv run pytest                                         # тесты без БД; -m integration — с БД
+uv run ruff check . && uv run ruff format --check . && uv run mypy   # линтеры и типы
 uv run python evaluation/evaluate.py --llm cache      # метрики → evaluation/metrics_report.md (без ключа, ответы ИИ из кэша)
 ```
 
@@ -35,9 +36,9 @@ uv run python evaluation/evaluate.py --llm cache      # метрики → evalu
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | схема и шаги поиска, где ИИ / код / человек, хранилище и модели, стоимость, качество, ограничения и план |
 | [AI_LOG.md](AI_LOG.md) | журнал работы с ИИ и время |
-| `src/analog_search/` | код: `domain` (правила) → `repositories` (БД) → `services` → `app` (API, CLI) |
+| `src/analog_search/` | код по слоям: `domain` (правила и порты) ← `services` (сценарии) ← `repositories` (БД) и `infrastructure` (файлы, модели, источники) ← `app` (API, CLI, сборка); направление импортов проверяет `tests/test_layers.py` |
 | `static/` | страницы поиска и правки знаний |
-| `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту |
+| `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту; `scripts/` — генератор yaml из базы |
 | `config/search.yaml` | веса оценки, порог «не найдено», top-K |
 | `evaluation/` | контрольный набор `gold_queries.json`, `evaluate.py`, отчёт |
 | `demo/decisions.json` | демо-решения специалиста → золотые карточки |

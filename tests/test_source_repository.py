@@ -29,7 +29,7 @@ def db() -> Iterator[Database]:
 
 
 def _release(source: SourceKind, sha256: str) -> Release:
-    return Release(source, VERSION, None, None, ("file",), sha256)
+    return Release(source=source, version=VERSION, published=None, url=None, files=("file",), sha256=sha256)
 
 
 def _count(db: Database, model: type, release_id: int) -> int:

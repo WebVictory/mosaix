@@ -181,7 +181,7 @@ class CardRepository:
             .order_by(PositionRow.source_row)
         ).all()
         reference = (
-            Reference(row.reference_source, row.reference_code, row.reference_name or "")
+            Reference(source=row.reference_source, code=row.reference_code, name=row.reference_name or "")
             if row.reference_source and row.reference_code
             else None
         )
@@ -191,7 +191,8 @@ class CardRepository:
             name=row.name,
             category_code=row.category_code,
             links=tuple(
-                Link(pid, source_row, name, Decision(relation), note) for pid, source_row, name, relation, note in links
+                Link(position_id=pid, row=source_row, name=name, decision=Decision(relation), note=note)
+                for pid, source_row, name, relation, note in links
             ),
             reference=reference,
         )
@@ -219,4 +220,4 @@ class KsrReferences:
                 .order_by(similarity.desc(), KsrResourceRow.code)
                 .limit(limit)
             ).all()
-        return [Reference(SourceKind.KSR, code, name) for code, name in rows]
+        return [Reference(source=SourceKind.KSR, code=code, name=name) for code, name in rows]

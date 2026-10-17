@@ -27,17 +27,29 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import cached_property
 from typing import Any, Protocol
 
+from pydantic import Field
+
 from analog_search.domain.cards import Card, CardStore, card_key, confirm
 from analog_search.domain.completion import Completer
 from analog_search.domain.features import Extractors, FeatureExtractor, Value
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.judging import Judge
 from analog_search.domain.knowledge import Attribute, Category, Classifier, Knowledge, Level, normalize
-from analog_search.domain.matching import Assessment, Candidate, Decision, Kind, Matcher, Outcome, ScoringConfig
+from analog_search.domain.matching import (
+    BY_TEXT,
+    Assessment,
+    Candidate,
+    Decision,
+    Kind,
+    Matcher,
+    Outcome,
+    Requirements,
+    ScoringConfig,
+)
 from analog_search.domain.reading import ChoiceReading, Embedder, Option, ReaderError, Reading, SeriesValue, options
 from analog_search.domain.spelling import Fix, Spelled, Speller
 
@@ -85,8 +97,7 @@ class Reason(StrEnum):
     DISMISSED = "dismissed"
 
 
-@dataclass(frozen=True)
-class NotFound:
+class NotFound(Frozen):
     reason: Reason
     message: str
     closest: Assessment | None
@@ -100,16 +111,14 @@ class Source(StrEnum):
     SPECIALIST = "specialist"  # a correction
 
 
-@dataclass(frozen=True)
-class Correction:
+class Correction(Frozen):
     """What a specialist corrected in the understanding of a query."""
 
     category: str | None = None  # a category code in place of the one read
-    values: Mapping[str, str | None] = field(default_factory=dict)  # attribute → option id; None — not stated
+    values: dict[str, str | None] = Field(default_factory=dict)  # attribute → option id; None — not stated
 
 
-@dataclass(frozen=True)
-class Facet:
+class Facet(Frozen):
     """An attribute of the query's category, as a shop shows a filter: its value, if stated, and the others."""
 
     attribute: Attribute
@@ -120,17 +129,11 @@ class Facet:
     option: str | None  # the value among the options
 
 
-@dataclass(frozen=True)
-class Understanding:
-    """What was read from a query: the same structure the rows of the base were parsed into."""
+class Understanding(Requirements):
+    """What was read from a query: the same structure the rows of the base were parsed into, and who read it."""
 
     text: str
-    category: Category | None
-    category_source: Source | None
-    extractors: dict[str, FeatureExtractor]  # comparers of what can be read, by the rules or the model
-    values: dict[str, Value]
-    declined: frozenset[str]  # stated in a form nobody reads («3х2,5+1х1,5»)
-    by_llm: frozenset[str]
+    category_source: Source | None = None
     corrected: frozenset[str] = frozenset()  # values a specialist set or cleared
 
     @property
@@ -139,14 +142,13 @@ class Understanding:
         return card_key(self.category, self.values, self.text)
 
 
-@dataclass(frozen=True)
-class SearchResult:
+class SearchResult(Frozen):
     query: str
     knowledge_version: str
     category: Category | None
     facets: list[Facet]
     category_source: Source | None = None
-    candidates: list[Assessment] = field(default_factory=list)
+    candidates: list[Assessment] = Field(default_factory=list)
     not_found: NotFound | None = None
     card: Card | None = None  # the typical position specialists confirmed rows for
 
@@ -155,16 +157,15 @@ class SearchResult:
         return bool(self.candidates) and self.not_found is None
 
 
-@dataclass(frozen=True)
-class Suggestions:
+class Suggestions(Frozen):
     """What is offered while a query is typed: the query with its typing mistakes fixed, its last word
     finished, the categories it names and the names of the history that hold it."""
 
     text: str
     fixes: tuple[Fix, ...]
-    completions: list[str] = field(default_factory=list)
-    categories: list[Category] = field(default_factory=list)
-    names: list[str] = field(default_factory=list)
+    completions: list[str] = Field(default_factory=list)
+    categories: list[Category] = Field(default_factory=list)
+    names: list[str] = Field(default_factory=list)
 
 
 class SearchService:
@@ -203,7 +204,7 @@ class SearchService:
         if category is None:
             if correction.values:
                 raise InvalidQuery("Характеристики правятся только у запроса с категорией")
-            return Understanding(text, None, None, {}, {}, frozenset(), frozenset())
+            return Understanding(text=text)
         extractors = self._comparers(category)
         values = self._extractors.extract(category, text)
         declined = self._extractors.declined(category, text)
@@ -212,13 +213,13 @@ class SearchService:
             rules = self._extractors.of(category)
             extractors = {code: e for code, e in extractors.items() if code in rules or code not in read.unanswered}
         understood = Understanding(
-            text,
-            category,
-            source,
-            extractors,
-            {**values, **read.values},
-            declined | read.unsure,
-            frozenset(read.values),
+            text=text,
+            category=category,
+            category_source=source,
+            extractors=extractors,
+            values={**values, **read.values},
+            declined=declined | read.unsure,
+            by_llm=frozenset(read.values),
         )
         return self._corrected(understood, category, correction.values) if correction.values else understood
 
@@ -235,7 +236,7 @@ class SearchService:
         read = self.understand(query)
         candidates = self._store.positions(position_ids, read.text) if position_ids else []
         if read.category is None:
-            return None, [self._matcher.assess(None, {}, {}, c) for c in candidates]
+            return None, [self._matcher.assess(BY_TEXT, c) for c in candidates]
         return read.category, [self._assess(read, c) for c in candidates]
 
     def search(self, query: str, correction: Correction | None = None) -> SearchResult:
@@ -254,7 +255,7 @@ class SearchService:
         vector = self._vector(query)
         nearest = self._store.nearest(read.text, self.config.nearest_k, vector)
         if category is None:  # nothing to apply rules to: the whole base by text, against the same threshold
-            assessed = [self._matcher.assess(None, {}, {}, c) for c in nearest]
+            assessed = [self._matcher.assess(BY_TEXT, c) for c in nearest]
             foreign: list[Assessment] = []
         else:
             pool = self._store.in_category(self.knowledge.version, category.code, read.text, vector)
@@ -274,15 +275,17 @@ class SearchService:
             key=lambda a: (KIND_ORDER.index(a.kind), a.confirmed is None, -a.score),
         )[: self.config.top_k]
         if any(a.kind is not Kind.UNVERIFIED for a in accepted):
-            return replace(result, candidates=accepted)
+            return result.model_copy(update={"candidates": accepted})
         if accepted:
-            return replace(result, candidates=accepted, not_found=self._unverified(category, accepted[0]))
+            return result.model_copy(
+                update={"candidates": accepted, "not_found": self._unverified(category, accepted[0])}
+            )
         dismissed = passing + [  # what would have passed but a specialist turned down
             a for a in assessed + foreign if a.dismissed and not a.rejected and a.score >= self.config.threshold
         ]
         if dismissed:
-            return replace(result, not_found=self._dismissed(max(dismissed, key=lambda a: a.score)))
-        return replace(result, not_found=self._explain(category, assessed, nearest))
+            return result.model_copy(update={"not_found": self._dismissed(max(dismissed, key=lambda a: a.score))})
+        return result.model_copy(update={"not_found": self._explain(category, assessed, nearest)})
 
     def stats(self) -> dict[str, Any]:
         """What the search works with; a warning if the base was parsed with another knowledge release."""
@@ -311,11 +314,11 @@ class SearchService:
         """While a query is typed: its spelling fixed, its last word finished, the categories it names and the
         names of the history that hold it — all of the query as fixed."""
         if len(query.strip()) < MIN_SUGGESTED:
-            return Suggestions(query, ())
+            return Suggestions(text=query, fixes=())
         spelled = self.spell(query[:MAX_QUERY_LENGTH], typing=True)
         return Suggestions(
-            spelled.text,
-            spelled.fixes,
+            text=spelled.text,
+            fixes=spelled.fixes,
             completions=self._completer.words(spelled.text, COMPLETED),
             categories=self._completer.categories(spelled.text, COMPLETED),
             names=self._completer.names(spelled.text, SUGGESTED),
@@ -383,13 +386,14 @@ class SearchService:
             values[code] = option.value
             extractors.setdefault(code, SeriesValue(attribute))  # compared even when only the model reads it
         corrected = frozenset(corrections)
-        return replace(
-            read,
-            extractors=extractors,
-            values=values,
-            declined=read.declined - corrected,
-            by_llm=read.by_llm - corrected,
-            corrected=corrected,
+        return read.model_copy(
+            update={
+                "extractors": extractors,
+                "values": values,
+                "declined": read.declined - corrected,
+                "by_llm": read.by_llm - corrected,
+                "corrected": corrected,
+            }
         )
 
     @staticmethod
@@ -417,11 +421,9 @@ class SearchService:
     def _assess(self, read: Understanding, candidate: Candidate) -> Assessment:
         category = read.category
         foreign = category is not None and candidate.category_code != category.code
-        if foreign:
+        if category is not None and foreign:
             candidate = self._as(category, candidate)
-        return self._matcher.assess(
-            category, read.extractors, read.values, candidate, read.declined, read.by_llm, foreign
-        )
+        return self._matcher.assess(read, candidate, foreign)
 
     def _confirmed(
         self,
@@ -442,8 +444,11 @@ class SearchService:
 
     def _as(self, category: Category, candidate: Candidate) -> Candidate:
         """A row of another category with the attributes the query's rules read from its name."""
-        return replace(
-            candidate, attributes=self._extractors.extract(category, normalize(candidate.name)), read_by_llm=frozenset()
+        return candidate.model_copy(
+            update={
+                "attributes": self._extractors.extract(category, normalize(candidate.name)),
+                "read_by_llm": frozenset(),
+            }
         )
 
     def _vector(self, query: str) -> list[float] | None:
@@ -469,9 +474,9 @@ class SearchService:
     def _dismissed(closest: Assessment) -> NotFound:
         by = "специалист отклонил" if closest.confirmed is Decision.NOT_ANALOG else "ИИ-проверка сочла"
         return NotFound(
-            Reason.DISMISSED,
-            f"Похожие по тексту позиции есть, и правила их не отсекли, но {by} каждую другим товаром.",
-            closest,
+            reason=Reason.DISMISSED,
+            message=f"Похожие по тексту позиции есть, и правила их не отсекли, но {by} каждую другим товаром.",
+            closest=closest,
         )
 
     @staticmethod
@@ -480,27 +485,27 @@ class SearchService:
             c.attribute.name for c in closest.checks_with(Outcome.MISSING) if c.attribute.level is Level.HARD
         ]
         return NotFound(
-            Reason.UNVERIFIED,
-            f"В категории «{category.name if category else ''}» есть похожие позиции, но жёсткие характеристики "
+            reason=Reason.UNVERIFIED,
+            message=f"В категории «{category.name if category else ''}» есть похожие позиции, но жёсткие характеристики "
             f"не удалось сравнить ({', '.join(unchecked)}): совпадение не подтверждено, проверьте вручную.",
-            closest,
+            closest=closest,
         )
 
     def _explain(self, category: Category | None, assessed: list[Assessment], nearest: list[Candidate]) -> NotFound:
-        closest = max(nearest, key=self._matcher.text, default=None)
-        closest_by_text = self._matcher.assess(None, {}, {}, closest) if closest else None
+        nearest_row = max(nearest, key=self._matcher.text, default=None)
+        closest_by_text = self._matcher.assess(BY_TEXT, nearest_row) if nearest_row else None
         if category is None:
             return NotFound(
-                Reason.UNKNOWN_CATEGORY,
-                "Не удалось определить, что это за товар: ни одна категория справочника не узнала запрос, "
+                reason=Reason.UNKNOWN_CATEGORY,
+                message="Не удалось определить, что это за товар: ни одна категория справочника не узнала запрос, "
                 "а по тексту ничего достаточно близкого нет.",
-                closest_by_text,
+                closest=closest_by_text,
             )
         if not assessed:
             return NotFound(
-                Reason.CATEGORY_ABSENT,
-                f"Запрос распознан как «{category.name}», но таких позиций в истории закупок нет.",
-                closest_by_text,
+                reason=Reason.CATEGORY_ABSENT,
+                message=f"Запрос распознан как «{category.name}», но таких позиций в истории закупок нет.",
+                closest=closest_by_text,
             )
         passing = [a for a in assessed if not a.rejected]
         if not passing:
@@ -511,17 +516,17 @@ class SearchService:
                 if c.attribute.level is Level.HARD
             )
             return NotFound(
-                Reason.HARD_MISMATCH,
-                f"В категории «{category.name}» {len(assessed)} поз., ни одна не проходит жёсткие правила замены. "
+                reason=Reason.HARD_MISMATCH,
+                message=f"В категории «{category.name}» {len(assessed)} поз., ни одна не проходит жёсткие правила замены. "
                 f"Ближайшая не подходит: {failed}.",
-                closest,
+                closest=closest,
             )
         closest = max(passing, key=lambda a: a.score)
         return NotFound(
-            Reason.LOW_SCORE,
-            f"В категории «{category.name}» нет позиции с оценкой выше порога {self.config.threshold}: "
+            reason=Reason.LOW_SCORE,
+            message=f"В категории «{category.name}» нет позиции с оценкой выше порога {self.config.threshold}: "
             "характеристики запроса у кандидатов не указаны или текст слишком далёк.",
-            closest,
+            closest=closest,
         )
 
     def _facets(self, read: Understanding) -> list[Facet]:
@@ -535,12 +540,26 @@ class SearchService:
             code = attribute.code
             choices = self._options(attribute, rules)
             if code not in read.values:
-                return Facet(attribute, None, None, code in read.declined, choices, None)
+                return Facet(
+                    attribute=attribute,
+                    value=None,
+                    source=None,
+                    declined=code in read.declined,
+                    options=choices,
+                    option=None,
+                )
             value = read.values[code]
             source = (
                 Source.SPECIALIST if code in read.corrected else Source.LLM if code in read.by_llm else Source.RULES
             )
             option = next((o.id for o in choices if o.value == value), None)
-            return Facet(attribute, read.extractors[code].format(value, attribute.unit), source, False, choices, option)
+            return Facet(
+                attribute=attribute,
+                value=read.extractors[code].format(value, attribute.unit),
+                source=source,
+                declined=False,
+                options=choices,
+                option=option,
+            )
 
         return [facet(a) for a in category.attributes]

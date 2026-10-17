@@ -12,7 +12,7 @@ _WORD = re.compile(r"[^\W_]+")
 
 
 def trigrams(text: str) -> frozenset[str]:
-    grams = set()
+    grams: set[str] = set()
     for word in _WORD.findall(text.lower()):
         padded = f"  {word} "
         grams.update(padded[i : i + 3] for i in range(len(padded) - 2))

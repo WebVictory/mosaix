@@ -17,17 +17,18 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
+from contextlib import closing
 from datetime import date
 from pathlib import Path
 
-from analog_search.app.bootstrap import knowledge_service, models, search_service, services
+from analog_search.app.bootstrap import knowledge_service, models, search_service, services, source_service
 from analog_search.app.config import Settings
-from analog_search.domain.sources import SourceKind
+from analog_search.domain.sources import Edition, SourceKind
 from analog_search.infrastructure.sources import ksr
 from analog_search.infrastructure.sources.store import Downloader
 from analog_search.repositories.database import Database
 from analog_search.repositories.sources import SourceRepository
-from analog_search.services.sources import SourceService
 
 MANUAL_URLS = {
     SourceKind.KSR: ksr.MANUAL_URL,
@@ -79,86 +80,84 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = _parser().parse_args(argv)
-    settings = Settings()
-
-    if args.command == "db":
-        db = Database(settings.database_url)
+def _db(args: argparse.Namespace, settings: Settings) -> None:
+    with closing(Database(settings.database_url)) as db:
         db.init_schema()
-        db.close()
-        print("schema ready")
-        return
+    print("schema ready")
 
-    if args.command == "serve":
-        import uvicorn
 
-        uvicorn.run("analog_search.app.api:create_app", factory=True, host=args.host, port=args.port)
-        return
+def _serve(args: argparse.Namespace, settings: Settings) -> None:
+    import uvicorn
 
-    if args.command == "search":
-        from analog_search.app.api import to_response
+    uvicorn.run("analog_search.app.api:create_app", factory=True, host=args.host, port=args.port)
 
-        db = Database(settings.database_url)
-        try:
-            result = to_response(search_service(settings, db).search(args.query))
-            print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
-        finally:
-            db.close()
-        return
 
-    if args.command == "decisions":
-        db = Database(settings.database_url)
-        try:
-            cards = services(settings, db).cards
-            if args.action == "load":
-                print(cards.load(args.file or settings.demo_decisions, args.author, settings.positions_file.name))
-            else:
-                print(json.dumps(cards.export(), ensure_ascii=False, indent=2))
-        finally:
-            db.close()
-        return
+def _search(args: argparse.Namespace, settings: Settings) -> None:
+    from analog_search.app.api import to_response
 
-    if args.command in ("knowledge", "positions"):
-        db = Database(settings.database_url)
-        try:
-            # positions: unread hard attributes asked of the model, names embedded (ANALOG_LLM)
-            service = knowledge_service(settings, db, models(settings) if args.command == "positions" else None)
-            if args.command == "knowledge":
-                knowledge, counts = service.load_knowledge()
-                print(f"{knowledge.version}: {'already stored, activated' if counts is None else counts}")
-            else:
-                print(service.load_positions(args.file or settings.positions_file))
-        finally:
-            db.close()
-        return
+    with closing(Database(settings.database_url)) as db:
+        result = to_response(search_service(settings, db).search(args.query))
+    print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
 
+
+def _decisions(args: argparse.Namespace, settings: Settings) -> None:
+    with closing(Database(settings.database_url)) as db:
+        cards = services(settings, db).cards
+        if args.action == "load":
+            print(cards.load(args.file or settings.demo_decisions, args.author, settings.positions_file.name))
+        else:
+            print(json.dumps(cards.export(), ensure_ascii=False, indent=2))
+
+
+def _knowledge(args: argparse.Namespace, settings: Settings) -> None:
+    with closing(Database(settings.database_url)) as db:
+        knowledge, counts = knowledge_service(settings, db).load_knowledge()
+    print(f"{knowledge.version}: {'already stored, activated' if counts is None else counts}")
+
+
+def _positions(args: argparse.Namespace, settings: Settings) -> None:
+    with closing(Database(settings.database_url)) as db:
+        # unread hard attributes asked of the model, names embedded (ANALOG_LLM)
+        print(knowledge_service(settings, db, models(settings)).load_positions(args.file or settings.positions_file))
+
+
+def _sources(args: argparse.Namespace, settings: Settings) -> None:
     if args.action in ("fetch", "register"):
-        downloader = Downloader(settings.timeout_s, settings.request_delay_s)
-        try:
-            service = SourceService(settings.sources_dir, downloader=downloader)
+        with closing(Downloader(settings.timeout_s, settings.request_delay_s)) as downloader:
+            service = source_service(settings, downloader=downloader)
             if args.action == "fetch":
                 directory = service.fetch(args.source)
             else:
-                directory = service.register(
-                    args.source, args.file, args.version, args.published, MANUAL_URLS[args.source]
+                edition = Edition(
+                    source=args.source, version=args.version, published=args.published, url=MANUAL_URLS[args.source]
                 )
-        finally:
-            downloader.close()
+                directory = service.register(edition, args.file)
         print(directory)
         return
-
-    db = Database(settings.database_url)
-    try:
+    with closing(Database(settings.database_url)) as db:
         repository = SourceRepository(db)
         if args.action == "status":
             for row in repository.releases():
                 print(f"{row.source:6} {row.version:12} {row.published or ''!s:10} {row.counts}")
             return
-        counts = SourceService(settings.sources_dir, store=repository).load(args.source, args.dir, args.force)
-        print("already loaded" if counts is None else counts)
-    finally:
-        db.close()
+        counts = source_service(settings, store=repository).load(args.source, args.dir, args.force)
+    print("already loaded" if counts is None else counts)
+
+
+COMMANDS: dict[str, Callable[[argparse.Namespace, Settings], None]] = {
+    "db": _db,
+    "serve": _serve,
+    "search": _search,
+    "decisions": _decisions,
+    "knowledge": _knowledge,
+    "positions": _positions,
+    "sources": _sources,
+}
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
+    COMMANDS[args.command](args, Settings())
 
 
 if __name__ == "__main__":

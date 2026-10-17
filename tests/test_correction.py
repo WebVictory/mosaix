@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from analog_search.app.api import create_app
 from analog_search.app.bootstrap import Services
 from analog_search.domain.matching import Decision
-from analog_search.repositories.knowledge import ParsedPosition
+from analog_search.domain.positions import ParsedPosition
 from analog_search.repositories.memory import MemoryCards
 from analog_search.services.cards import CardService
 from analog_search.services.search import Correction, InvalidQuery, SearchService, Source

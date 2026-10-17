@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analog_search.domain.sources import KtruPosition, Release, SourceKind
-from analog_search.infrastructure.sources.store import read_manifest
+from analog_search.domain.sources import Edition, KtruPosition, Release, SourceKind
+from analog_search.infrastructure.sources.formats import formats
+from analog_search.infrastructure.sources.store import ReleaseFiles, read_manifest
 from analog_search.services.sources import SourceService
 from tests.test_sources import KTRU_XML
 
@@ -27,9 +28,11 @@ def test_register_then_load_once(tmp_path: Path) -> None:
     file.parent.mkdir()
     file.write_text(KTRU_XML, encoding="utf-8")
     store = FakeStore()
-    service = SourceService(tmp_path / "sources", store=store)
+    root = tmp_path / "sources"
+    service = SourceService(ReleaseFiles(root), formats(root), store=store)
 
-    directory = service.register(SourceKind.KTRU, file, "2026-10-01", None, "manual")
+    edition = Edition(source=SourceKind.KTRU, version="2026-10-01", url="manual")
+    directory = service.register(edition, file)
     release = read_manifest(directory)
 
     assert directory == tmp_path / "sources" / "ktru" / "2026-10-01"
@@ -40,5 +43,5 @@ def test_register_then_load_once(tmp_path: Path) -> None:
 
     # Same version, new file content → new sha256 → loaded again
     file.write_text(KTRU_XML.replace("Кабель", "Провод"), encoding="utf-8")
-    service.register(SourceKind.KTRU, file, "2026-10-01", None, "manual")
+    service.register(edition, file)
     assert service.load(SourceKind.KTRU) == {"ktru_positions": 1}

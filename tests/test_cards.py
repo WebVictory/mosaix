@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,7 +11,7 @@ from analog_search.app.config import PROJECT_ROOT
 from analog_search.domain.cards import Reference, UnknownPosition, card_key
 from analog_search.domain.knowledge import Knowledge
 from analog_search.domain.matching import Decision, Kind, Verdict
-from analog_search.repositories.knowledge import ParsedPosition
+from analog_search.domain.positions import ParsedPosition
 from analog_search.repositories.memory import MemoryCards
 from analog_search.services.cards import CardService
 from analog_search.services.search import Reason, SearchService
@@ -26,7 +24,7 @@ TRANSFORMER = "трансформатор силовой сухой 1000 кВА"
 
 class Book:
     def __init__(self, *names: str) -> None:
-        self._references = [Reference("ksr", f"01.{i}", name) for i, name in enumerate(names)]
+        self._references = [Reference(source="ksr", code=f"01.{i}", name=name) for i, name in enumerate(names)]
 
     def nearest(self, text: str, limit: int) -> list[Reference]:
         return self._references[:limit]
@@ -117,7 +115,7 @@ def test_the_judge_is_not_asked_about_confirmed_rows(
 def test_a_linked_row_the_search_did_not_reach_is_fetched(
     knowledge: Knowledge, positions: dict[int, ParsedPosition], service: SearchService, cards: MemoryCards
 ) -> None:
-    far = replace(positions[1541], name="SKAT-V.12DC-18 исп.5М", search_text="skat-v.12dc-18 исп.5м")
+    far = positions[1541].model_copy(update={"name": "SKAT-V.12DC-18 исп.5М", "search_text": "skat-v.12dc-18 исп.5м"})
     search = searched(knowledge, service, [*(p for r, p in positions.items() if r != 1541), far], cards=cards)
     CardService(search, cards).decide("пломба номерная пластиковая", 1541, Decision.ANALOG)
 
@@ -130,7 +128,7 @@ def test_a_new_card_is_anchored_to_the_ksr_ideal_that_reads_the_same(search: Sea
 
     card = CardService(search, cards, book).decide(CABLE, 1171, Decision.ANALOG)
 
-    assert card is not None and card.reference == Reference("ksr", "01.1", ideal)
+    assert card is not None and card.reference == Reference(source="ksr", code="01.1", name=ideal)
 
 
 def test_no_ideal_when_the_query_leaves_a_hard_attribute_unread(search: SearchService, cards: MemoryCards) -> None:

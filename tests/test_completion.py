@@ -15,9 +15,11 @@ NAMES = [
     "Ворота откатные",
     "Модуль отказоустойчивости",
 ]
-CABLE = Category("kabel_prochiy", "кабель (прочий)", "кабели и провода", triggers=("кабель",))
-CONTROL = Category("kabel_kontrolny", "кабель контрольный", "кабели и провода", triggers=("кабель контрольный", "кввг"))
-LIGHT = Category("svetilnik", "светильник", "освещение", triggers=("светильник",))
+CABLE = Category(code="kabel_prochiy", name="кабель (прочий)", group="кабели и провода", triggers=("кабель",))
+CONTROL = Category(
+    code="kabel_kontrolny", name="кабель контрольный", group="кабели и провода", triggers=("кабель контрольный", "кввг")
+)
+LIGHT = Category(code="svetilnik", name="светильник", group="освещение", triggers=("светильник",))
 COMPLETER = Completer(NAMES, [CABLE, CONTROL, LIGHT])
 
 

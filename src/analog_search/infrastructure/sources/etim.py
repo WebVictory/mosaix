@@ -35,7 +35,17 @@ PUBLISHED = date(2024, 12, 5)
 def fetch(downloader: Downloader, root: Path, url: str = URL, version: str = VERSION) -> Path:
     directory = release_dir(root, SourceKind.ETIM, version)
     target = downloader.save(url, directory / url.rsplit("/", 1)[-1])
-    write_manifest(directory, Release(SourceKind.ETIM, version, PUBLISHED, url, (target.name,), sha256_of([target])))
+    write_manifest(
+        directory,
+        Release(
+            source=SourceKind.ETIM,
+            version=version,
+            published=PUBLISHED,
+            url=url,
+            files=(target.name,),
+            sha256=sha256_of([target]),
+        ),
+    )
     return directory
 
 

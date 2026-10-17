@@ -7,16 +7,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import ssl
 import time
-from dataclasses import asdict
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 import truststore
 
-from analog_search.domain.sources import Release, SourceKind
+from analog_search.domain.sources import Edition, Release, SourceKind
 
 MANIFEST = "manifest.json"
 USER_AGENT = "analog-search/0.1 (taxonomy loader)"
@@ -34,27 +34,42 @@ def sha256_of(paths: list[Path]) -> str:
 
 
 def write_manifest(directory: Path, release: Release) -> None:
-    data = asdict(release) | {"fetched_at": datetime.now(UTC).isoformat(timespec="seconds")}
-    data["published"] = release.published.isoformat() if release.published else None
+    data = release.model_dump(mode="json") | {"fetched_at": datetime.now(UTC).isoformat(timespec="seconds")}
     (directory / MANIFEST).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def read_manifest(directory: Path) -> Release:
     data = json.loads((directory / MANIFEST).read_text(encoding="utf-8"))
-    return Release(
-        source=SourceKind(data["source"]),
-        version=data["version"],
-        published=date.fromisoformat(data["published"]) if data["published"] else None,
-        url=data["url"],
-        files=tuple(data["files"]),
-        sha256=data["sha256"],
-    )
+    data.pop("fetched_at", None)
+    return Release.model_validate(data)
 
 
 def latest_release(root: Path, source: SourceKind) -> Path | None:
     """Most recently fetched release directory of a source."""
     candidates = [d for d in (root / source.value).glob("*") if (d / MANIFEST).is_file()]
     return max(candidates, key=lambda d: (d / MANIFEST).stat().st_mtime, default=None)
+
+
+class ReleaseFiles:
+    """The release directories under one root."""
+
+    def __init__(self, root: Path):
+        self._root = root
+
+    def latest(self, source: SourceKind) -> Path | None:
+        return latest_release(self._root, source)
+
+    def release(self, directory: Path) -> Release:
+        return read_manifest(directory)
+
+    def register(self, edition: Edition, file: Path) -> Path:
+        directory = release_dir(self._root, edition.source, edition.version)
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / file.name
+        if file.resolve() != target.resolve():
+            shutil.copyfile(file, target)
+        write_manifest(directory, Release(**edition.model_dump(), files=(target.name,), sha256=sha256_of([target])))
+        return directory
 
 
 class Downloader:

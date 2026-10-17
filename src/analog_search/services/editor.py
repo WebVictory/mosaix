@@ -18,21 +18,25 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
 from analog_search.domain.cards import Card, CardStore, Link
 from analog_search.domain.editing import MAX_TOLERANCE, Edit, Field, InvalidEdit, apply, current, validated
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import Attribute, Category, Comparison, Knowledge, Level
 from analog_search.domain.matching import Assessment, Decision, Outcome, ScoringConfig
-from analog_search.repositories.knowledge import ParsedPosition
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.knowledge import KnowledgeService, PositionStore, carried, reparsed
-from analog_search.services.search import SearchService
+from analog_search.domain.positions import ParsedPosition, carried, reparsed
+from analog_search.services.knowledge import KnowledgeService, PositionStore
+from analog_search.services.search import CandidateStore, SearchService
 
 EXAMPLES = 20  # changed rows shown in an impact report
 SAMPLES = 3  # rows of a category shown next to its rules
+
+
+# Candidates held in memory: a draft is tried on the history without touching the stored one
+InMemory = Callable[[str, list[ParsedPosition]], CandidateStore]
 
 
 class EditStore(Protocol):
@@ -49,15 +53,13 @@ class EditStore(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class Draft:
+class Draft(Frozen):
     active: Knowledge
     edits: list[Edit]
     knowledge: Knowledge  # the active release with the edits
 
 
-@dataclass(frozen=True)
-class Disagreement:
+class Disagreement(Frozen):
     """A golden-card link the rules disagree with, and what might settle it."""
 
     card_id: int
@@ -75,24 +77,21 @@ class Disagreement:
         return self.card_id, self.row, self.problem
 
 
-@dataclass(frozen=True)
-class Usage:
+class Usage(Frozen):
     """The history rows of a category: what an edit of its rules touches."""
 
     rows: int
     samples: list[str]
 
 
-@dataclass(frozen=True)
-class RowChange:
+class RowChange(Frozen):
     row: int
     name: str
     before: str
     after: str
 
 
-@dataclass(frozen=True)
-class QueryChange:
+class QueryChange(Frozen):
     id: str
     query: str
     expected: str
@@ -102,8 +101,7 @@ class QueryChange:
     correct_after: bool
 
 
-@dataclass(frozen=True)
-class Impact:
+class Impact(Frozen):
     version: str
     rows: int  # rows of the history the draft parses differently
     row_examples: list[RowChange]
@@ -126,23 +124,25 @@ class KnowledgeEditor:
         positions: PositionStore,
         cards: CardStore,
         config: ScoringConfig,
+        in_memory: InMemory,
         source: str,
         gold: Path | None = None,
     ):
-        """source — the history the cards link to (MemoryStore keys rows by their number in one source);
+        """source — the history the cards link to (in memory rows are keyed by their number in one source);
         gold — evaluation queries (evaluation/gold_queries.json), if present."""
         self._edits = edits
         self._knowledge = knowledge
         self._positions = positions
         self._cards = cards
         self._config = config
+        self._in_memory = in_memory
         self._source = source
         self._gold = gold
 
     def draft(self) -> Draft:
         active = self._knowledge.active()
         edits = self._edits.edits()
-        return Draft(active, edits, apply(active, edits))
+        return Draft(active=active, edits=edits, knowledge=apply(active, edits))
 
     def edit(self, edit: Edit) -> Edit | None:
         """Put an edit into the draft, in place of an earlier one of the same field; None if it brings the field
@@ -155,7 +155,7 @@ class KnowledgeEditor:
                 self._edits.discard(earlier.id)
         if checked.value == previous:
             return None
-        return self._edits.add(replace(checked, previous=previous))
+        return self._edits.add(checked.model_copy(update={"previous": previous}))
 
     def discard(self, edit_id: int) -> bool:
         return self._edits.discard(edit_id)
@@ -166,7 +166,7 @@ class KnowledgeEditor:
         for position in self._stored():
             if position.category_code is not None:
                 rows[position.category_code].append(position.name)
-        return {code: Usage(len(names), names[:SAMPLES]) for code, names in rows.items()}
+        return {code: Usage(rows=len(names), samples=names[:SAMPLES]) for code, names in rows.items()}
 
     def disagreements(self) -> list[Disagreement]:
         """Where the golden cards and the active release disagree: the suggestions to a specialist."""
@@ -182,9 +182,7 @@ class KnowledgeEditor:
         cards = self._cards.cards()
         disagreed, agreed = disagreements(old, cards), disagreements(new, cards)
         was, now = {d.key for d in disagreed}, {d.key for d in agreed}
-        changed = [
-            RowChange(later.source_row, later.name, *_change(earlier, later)) for earlier, later in _rows(before, after)
-        ]
+        changed = [_change(earlier, later) for earlier, later in _rows(before, after)]
         queries = self._queries(old, new)
         return Impact(
             version=draft.knowledge.version,
@@ -218,7 +216,7 @@ class KnowledgeEditor:
         return self._positions.stored().get(self._source, [])
 
     def _search(self, knowledge: Knowledge, positions: list[ParsedPosition]) -> SearchService:
-        return SearchService(knowledge, MemoryStore(knowledge.version, positions), self._config)
+        return SearchService(knowledge, self._in_memory(knowledge.version, positions), self._config)
 
     def _queries(self, old: SearchService, new: SearchService) -> list[QueryChange]:
         if self._gold is None or not self._gold.exists():
@@ -253,7 +251,17 @@ def disagreements(search: SearchService, cards: list[Card]) -> list[Disagreement
 
 def _disagreements(card: Card, link: Link, category: Category | None, a: Assessment) -> list[Disagreement]:
     def said(problem: str, advice: str, edit: Edit | None = None) -> Disagreement:
-        return Disagreement(card.id, card.name, link.row, link.name, link.decision, link.note, problem, advice, edit)
+        return Disagreement(
+            card_id=card.id,
+            query=card.name,
+            row=link.row,
+            name=link.name,
+            decision=link.decision,
+            note=link.note,
+            problem=problem,
+            advice=advice,
+            edit=edit,
+        )
 
     if link.decision in (Decision.SAME, Decision.ANALOG) and a.rejected:
         return [
@@ -267,7 +275,7 @@ def _disagreements(card: Card, link: Link, category: Category | None, a: Assessm
         said(
             f"Различие только снижает балл: {c.attribute.name} {c.query} → {c.candidate}",
             "Сделать жёсткой: строки с другим значением не будут предлагаться",
-            Edit(category.code, c.attribute.code, Field.LEVEL, Level.HARD.value),
+            Edit(category=category.code, attribute=c.attribute.code, field=Field.LEVEL, value=Level.HARD.value),
         )
         for c in a.checks_with(Outcome.MISMATCH)
         if c.attribute.level is Level.SOFT
@@ -298,11 +306,11 @@ def _loosened(category: Category | None, attribute: Attribute) -> tuple[str, Edi
     if attribute.comparison is Comparison.STEP and tolerance < MAX_TOLERANCE:
         return (
             f"Расширить допуск по ряду значений до ±{tolerance + 1}",
-            Edit(category.code, attribute.code, Field.STEP_TOLERANCE, tolerance + 1),
+            Edit(category=category.code, attribute=attribute.code, field=Field.STEP_TOLERANCE, value=tolerance + 1),
         )
     return (
         "Сделать мягкой: различие снизит балл, но не отсеет строку",
-        Edit(category.code, attribute.code, Field.LEVEL, Level.SOFT.value),
+        Edit(category=category.code, attribute=attribute.code, field=Field.LEVEL, value=Level.SOFT.value),
     )
 
 
@@ -316,14 +324,16 @@ def _rows(before: list[ParsedPosition], after: list[ParsedPosition]) -> list[tup
     ]
 
 
-def _change(before: ParsedPosition, after: ParsedPosition) -> tuple[str, str]:
+def _change(before: ParsedPosition, after: ParsedPosition) -> RowChange:
     """The two readings of a row, by what differs between them."""
     if before.category_code != after.category_code:
-        return before.category_code or "—", after.category_code or "—"
-    codes = sorted(
-        k for k in {*before.attributes, *after.attributes} if before.attributes.get(k) != after.attributes.get(k)
-    )
-    return _values(before, codes), _values(after, codes)
+        was, now = before.category_code or "—", after.category_code or "—"
+    else:
+        codes = sorted(
+            k for k in {*before.attributes, *after.attributes} if before.attributes.get(k) != after.attributes.get(k)
+        )
+        was, now = _values(before, codes), _values(after, codes)
+    return RowChange(row=after.source_row, name=after.name, before=was, after=now)
 
 
 def _values(position: ParsedPosition, codes: list[str]) -> str:

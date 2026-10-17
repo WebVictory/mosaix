@@ -32,6 +32,7 @@ from itertools import zip_longest
 from typing import Any, Protocol
 
 from analog_search.domain.features import Extractors, FeatureExtractor, Value, format_number
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import Attribute, Category, Level, normalize
 from analog_search.domain.spoken import spoken_numbers
 from analog_search.domain.trigrams import trigrams
@@ -97,8 +98,7 @@ class SeriesValue(FeatureExtractor):
         return self._order.index(value) if value in self._order else value
 
 
-@dataclass(frozen=True)
-class Option:
+class Option(Frozen):
     """An item of an attribute's series as a value to choose: by the model or a specialist."""
 
     id: str
@@ -121,9 +121,9 @@ def options(attribute: Attribute, extractor: FeatureExtractor | None) -> list[Op
         return []
     return [
         Option(
-            f"v{i}",
-            f"{format_number(v)} {attribute.unit}" if isinstance(v, float) and attribute.unit else str(v),
-            v,
+            id=f"v{i}",
+            label=f"{format_number(v)} {attribute.unit}" if isinstance(v, float) and attribute.unit else str(v),
+            value=v,
         )
         for i, v in enumerate(values)
     ]

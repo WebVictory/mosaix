@@ -321,11 +321,8 @@ class DuctSection(FeatureExtractor):
         return None if diameter is None else [diameter]
 
     def format(self, value: Value, unit: str | None) -> str:
-        return (
-            self._sides.format(value, unit)
-            if isinstance(value, list) and len(value) == 2
-            else f"d={format_number(value[0])} мм"
-        )
+        assert isinstance(value, list), "a section is read as a list: two sides or one diameter"
+        return self._sides.format(value, unit) if len(value) == 2 else f"d={format_number(value[0])} мм"
 
 
 class IPRating(FeatureExtractor):

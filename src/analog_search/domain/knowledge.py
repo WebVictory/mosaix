@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.spoken import spoken_sizes
 
 
@@ -43,8 +44,7 @@ class AttributeStatus(StrEnum):
     REJECTED = "rejected"
 
 
-@dataclass(frozen=True)
-class Attribute:
+class Attribute(Frozen):
     code: str  # сечение_жилы
     name: str
     unit: str | None
@@ -56,15 +56,25 @@ class Attribute:
     rule: dict[str, Any]  # spellings, value series, order, step tolerance, substitution note
 
 
-@dataclass(frozen=True)
-class Category:
+class Category(Frozen):
     code: str  # kabel_silovoy
     name: str  # кабель силовой
     group: str | None  # None for a group itself
     triggers: tuple[str, ...] = ()
     anti_triggers: tuple[str, ...] = ()
     synonyms: tuple[str, ...] = ()
-    attributes: tuple[Attribute, ...] = field(default=(), compare=False)
+    attributes: tuple[Attribute, ...] = ()
+
+    def __eq__(self, other: object) -> bool:
+        """A category is what names and recognizes it; its attribute schema is not compared."""
+        return isinstance(other, Category) and self._identity == other._identity
+
+    def __hash__(self) -> int:
+        return hash(self._identity)
+
+    @property
+    def _identity(self) -> tuple[Any, ...]:
+        return self.code, self.name, self.group, self.triggers, self.anti_triggers, self.synonyms
 
     @property
     def group_code(self) -> str | None:
@@ -81,8 +91,7 @@ SERVICE_FLAG = "service"  # positions.flags of such rows: never a candidate
 OTHER_MARK = "(проч"  # «труба (прочая)»: a catch-all yields to a sibling that also matched
 
 
-@dataclass(frozen=True)
-class Knowledge:
+class Knowledge(Frozen):
     version: str
     sha256: str
     categories: tuple[Category, ...]  # groups first, then categories in file order

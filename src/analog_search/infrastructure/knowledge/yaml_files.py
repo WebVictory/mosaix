@@ -6,6 +6,7 @@ The files are written for the specialist, in Russian; this is the only place tha
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,20 @@ STATUSES = {
 # Everything else of an attribute goes to its rule as is
 RULE_KEYS = {"написания": "spellings", "ряд": "series", "порядок": "order", "допуск_ступеней": "step_tolerance",
              "замена": "substitution", "величина": "quantity"}  # fmt: skip
+
+
+@dataclass(frozen=True)
+class YamlKnowledge:
+    """The yaml files of a directory as the seed of the knowledge base."""
+
+    directory: Path
+
+    @property
+    def location(self) -> str:
+        return str(self.directory)
+
+    def read(self) -> Knowledge:
+        return read(self.directory)
 
 
 def read(directory: Path) -> Knowledge:

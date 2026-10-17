@@ -31,10 +31,11 @@ from baseline import Baseline
 from analog_search.app.bootstrap import choice_reading, models
 from analog_search.app.config import Settings
 from analog_search.domain.judging import Judge
+from analog_search.domain.positions import parse
 from analog_search.infrastructure import scoring_yaml
 from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
 from analog_search.repositories.memory import MemoryStore
-from analog_search.services.knowledge import embed, parse, read_hard
+from analog_search.services.knowledge import embed, read_hard
 from analog_search.services.search import SearchService
 
 HERE = Path(__file__).parent

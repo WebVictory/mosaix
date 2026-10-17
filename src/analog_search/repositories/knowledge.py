@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import asdict, dataclass
-from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import CursorResult, Result, delete, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -21,6 +19,7 @@ from analog_search.domain.knowledge import (
     Level,
     Provenance,
 )
+from analog_search.domain.positions import ParsedPosition
 from analog_search.repositories.database import Database
 from analog_search.repositories.orm import (
     CategoryAttributeRow,
@@ -31,20 +30,6 @@ from analog_search.repositories.orm import (
     PositionReadingRow,
     PositionRow,
 )
-
-
-@dataclass(frozen=True)
-class ParsedPosition:
-    """A history row with what the parser made of it, ready to store."""
-
-    source_row: int
-    name: str
-    price: float | None
-    search_text: str
-    category_code: str | None
-    attributes: dict[str, Any]
-    flags: tuple[str, ...]
-    read_by_llm: tuple[str, ...] = ()  # attributes of `attributes` the choice model read, not the rules
 
 
 class KnowledgeRepository:
@@ -118,11 +103,13 @@ class KnowledgeRepository:
         """Drop an edit from the draft; False if it is not there (no such edit, or already published)."""
         with self._db.session() as session, session.begin():
             return bool(
-                session.execute(
-                    delete(KnowledgeEditRow).where(
-                        KnowledgeEditRow.id == edit_id, KnowledgeEditRow.release_id.is_(None)
+                _affected(
+                    session.execute(
+                        delete(KnowledgeEditRow).where(
+                            KnowledgeEditRow.id == edit_id, KnowledgeEditRow.release_id.is_(None)
+                        )
                     )
-                ).rowcount
+                )
             )
 
     def publish(self, knowledge: Knowledge, note: str | None = None) -> dict[str, int] | None:
@@ -141,11 +128,11 @@ class KnowledgeRepository:
         if existing is not None:
             self._activate(session, existing)
             return existing, None
-        release_id = session.scalar(
+        release_id = session.execute(
             insert(KnowledgeReleaseRow)
             .values(version=knowledge.version, sha256=knowledge.sha256, note=note)
             .returning(KnowledgeReleaseRow.id)
-        )
+        ).scalar_one()
         ids = dict(
             session.execute(
                 insert(CategoryRow).returning(CategoryRow.code, CategoryRow.id, sort_by_parameter_order=True),
@@ -153,7 +140,9 @@ class KnowledgeRepository:
             ).all()
         )
         attributes = [
-            {"category_id": ids[c.code], **_plain(asdict(a))} for c in knowledge.categories for a in c.attributes
+            {"category_id": ids[c.code], **a.model_dump(mode="json")}
+            for c in knowledge.categories
+            for a in c.attributes
         ]
         if attributes:
             session.execute(insert(CategoryAttributeRow), attributes)
@@ -163,6 +152,12 @@ class KnowledgeRepository:
     @staticmethod
     def _activate(session: Session, release_id: int) -> None:
         session.execute(update(KnowledgeReleaseRow).values(is_active=KnowledgeReleaseRow.id == release_id))
+
+
+def _affected(result: Result[Any]) -> int:
+    """Rows a DELETE or UPDATE touched: such a statement always gives a cursor result."""
+    assert isinstance(result, CursorResult)
+    return result.rowcount
 
 
 def _category(category: Category, release_id: int) -> dict[str, Any]:
@@ -203,11 +198,6 @@ def _edit(row: KnowledgeEditRow) -> Edit:
         id=row.id,
         created_at=row.created_at,
     )
-
-
-def _plain(values: dict[str, Any]) -> dict[str, Any]:
-    """Enums as their values: the driver binds plain str."""
-    return {k: v.value if isinstance(v, StrEnum) else v for k, v in values.items()}
 
 
 class PositionRepository:
@@ -251,14 +241,16 @@ class PositionRepository:
             ]
             if readings:
                 session.execute(insert(PositionReadingRow), readings)
-            stale = session.execute(
-                delete(PositionRow).where(
-                    PositionRow.source == source, PositionRow.source_row.not_in([p.source_row for p in positions])
+            stale = _affected(
+                session.execute(
+                    delete(PositionRow).where(
+                        PositionRow.source == source, PositionRow.source_row.not_in([p.source_row for p in positions])
+                    )
                 )
-            ).rowcount
-            categorized = session.scalar(
-                select(func.count()).where(PositionRow.source == source, PositionRow.category_id.is_not(None))
             )
+            categorized = session.execute(
+                select(func.count()).where(PositionRow.source == source, PositionRow.category_id.is_not(None))
+            ).scalar_one()
         return {"positions": len(rows), "categorized": categorized, "removed": stale, "read_by_llm": len(readings)}
 
     def stored(self) -> dict[str, list[ParsedPosition]]:

@@ -20,11 +20,13 @@ checked by the query's rules read from its name: a hard mismatch rejects it, oth
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from pydantic import ConfigDict, Field
+
 from analog_search.domain.features import FeatureExtractor, Value, same
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import Attribute, Category, Comparison, Level
 
 
@@ -58,8 +60,7 @@ class Decision(StrEnum):
     UNCLEAR = "unclear"  # skipped: kept in the decision log, links nothing
 
 
-@dataclass(frozen=True)
-class ScoringConfig:
+class ScoringConfig(Frozen):
     text_weight: float = 0.35
     features_weight: float = 0.45
     category_weight: float = 0.2
@@ -75,8 +76,7 @@ class ScoringConfig:
     judge_k: int = 10  # unresolved candidates the choice model judges
 
 
-@dataclass(frozen=True)
-class Candidate:
+class Candidate(Frozen):
     """A stored position as the search sees it."""
 
     id: int
@@ -90,8 +90,7 @@ class Candidate:
     read_by_llm: frozenset[str] = frozenset()  # attributes the choice model read, not the rules
 
 
-@dataclass(frozen=True)
-class Check:
+class Check(Frozen):
     attribute: Attribute
     query: str
     candidate: str | None
@@ -101,8 +100,7 @@ class Check:
     candidate_by_llm: bool = False
 
 
-@dataclass(frozen=True)
-class Assessment:
+class Assessment(Frozen):
     candidate: Candidate
     score: float
     breakdown: dict[str, float]
@@ -123,6 +121,24 @@ class Assessment:
 
     def checks_with(self, outcome: Outcome) -> list[Check]:
         return [c for c in self.checks if c.outcome is outcome]
+
+
+class Requirements(Frozen):
+    """What a query asks of a candidate: its category and the attribute values the category's rules compare.
+    No category — no rules: only the text decides."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    category: Category | None = None
+    extractors: dict[str, FeatureExtractor] = Field(
+        default_factory=dict
+    )  # comparers of what can be read, by the rules or the model
+    values: dict[str, Value] = Field(default_factory=dict)
+    declined: frozenset[str] = frozenset()  # stated in a form no extractor reads («3х2,5+1х1,5»)
+    by_llm: frozenset[str] = frozenset()  # read by the choice model, not the rules
+
+
+BY_TEXT = Requirements()
 
 
 def satisfies(attribute: Attribute, extractor: FeatureExtractor, query: Value, candidate: Value) -> bool:
@@ -171,24 +187,12 @@ class Matcher:
     def __init__(self, config: ScoringConfig):
         self.config = config
 
-    def assess(
-        self,
-        category: Category | None,
-        extractors: dict[str, FeatureExtractor],
-        query: dict[str, Value],
-        candidate: Candidate,
-        unread: frozenset[str] = frozenset(),
-        read_by_llm: frozenset[str] = frozenset(),
-        foreign: bool = False,
-    ) -> Assessment:
-        """extractors — comparers of the attributes that can be read, by the rules or the choice model;
-        unread — attributes the query states in a form no extractor reads («3х2,5+1х1,5»);
-        read_by_llm — attributes of the query the choice model read;
-        foreign — a row of another category whose attributes were read from its name by the query's rules."""
-        config = self.config
+    def assess(self, asked: Requirements, candidate: Candidate, foreign: bool = False) -> Assessment:
+        """foreign — a row of another category whose attributes were read from its name by the query's rules."""
+        config, category = self.config, asked.category
         in_category = category is not None and candidate.category_code == category.code
-        checked = in_category or (foreign and category is not None)
-        checks = self._checks(category, extractors, query, candidate, read_by_llm) if checked else ()
+        checked = category is not None and (in_category or foreign)
+        checks = self._checks(category, asked, candidate) if category and checked else ()
 
         scored = [c for c in checks if c.attribute.level is not Level.INFO]
         weights = [1.0 if c.attribute.level is Level.HARD else config.soft_share for c in scored]
@@ -217,15 +221,25 @@ class Matcher:
         score = round(min(1.0, max(0.0, sum(breakdown.values()))), 4)
         hard_miss = any(c.outcome is Outcome.MISMATCH and c.attribute.level is Level.HARD for c in checks)
         unreadable = (
-            tuple(a for a in _hard(category) if a.code not in extractors or a.code in unread) if in_category else ()
+            tuple(a for a in _hard(category) if a.code not in asked.extractors or a.code in asked.declined)
+            if in_category
+            else ()
         )
         if hard_miss:
             kind = None
         elif foreign:
             kind = Kind.UNVERIFIED
         else:
-            kind = self._kind(category, query, candidate, checks, unreadable, unread)
-        return Assessment(candidate, score, breakdown, checks, kind, unreadable, foreign=checked and not in_category)
+            kind = self._kind(asked, candidate, checks, unreadable)
+        return Assessment(
+            candidate=candidate,
+            score=score,
+            breakdown=breakdown,
+            checks=checks,
+            kind=kind,
+            unreadable=unreadable,
+            foreign=checked and not in_category,
+        )
 
     def text(self, candidate: Candidate) -> float:
         """How close the names are: by spelling or by meaning, the higher; meaning rescaled from meaning_floor."""
@@ -235,19 +249,13 @@ class Matcher:
         return max(candidate.similarity, max(0.0, candidate.meaning - floor) / (1 - floor))
 
     @staticmethod
-    def _checks(
-        category: Category,
-        extractors: dict[str, FeatureExtractor],
-        query: dict[str, Value],
-        candidate: Candidate,
-        read_by_llm: frozenset[str],
-    ) -> tuple[Check, ...]:
+    def _checks(category: Category, asked: Requirements, candidate: Candidate) -> tuple[Check, ...]:
         checks = []
         for attribute in category.attributes:
-            if attribute.code not in query:
+            if attribute.code not in asked.values:
                 continue
-            extractor = extractors[attribute.code]
-            wanted, offered = query[attribute.code], candidate.attributes.get(attribute.code)
+            extractor = asked.extractors[attribute.code]
+            wanted, offered = asked.values[attribute.code], candidate.attributes.get(attribute.code)
             if offered is None:
                 outcome, exact = Outcome.MISSING, False
             else:
@@ -260,7 +268,7 @@ class Matcher:
                     candidate=None if offered is None else extractor.format(offered, attribute.unit),
                     outcome=outcome,
                     exact=exact,
-                    query_by_llm=attribute.code in read_by_llm,
+                    query_by_llm=attribute.code in asked.by_llm,
                     candidate_by_llm=offered is not None and attribute.code in candidate.read_by_llm,
                 )
             )
@@ -268,24 +276,22 @@ class Matcher:
 
     @staticmethod
     def _kind(
-        category: Category | None,
-        query: dict[str, Value],
-        candidate: Candidate,
-        checks: tuple[Check, ...],
-        unreadable: tuple[Attribute, ...],
-        unread: frozenset[str],
+        asked: Requirements, candidate: Candidate, checks: tuple[Check, ...], unreadable: tuple[Attribute, ...]
     ) -> Kind:
         """An analog needs a confirmed hard rule; «the same» needs every hard attribute compared.
 
         A hard value the query states but nobody read is not a passed rule: «3х2,5+1х1,5» is not «3х2,5».
         A category without hard attributes has nothing critical to confirm: the text and soft rules decide.
         """
+        category = asked.category
         if category is None or candidate.category_code != category.code:
             return Kind.TEXT
         hard = _hard(category)
-        if any(a.code in unread for a in hard) or (hard and not any(c.outcome is Outcome.MATCH for c in checks)):
+        if any(a.code in asked.declined for a in hard) or (
+            hard and not any(c.outcome is Outcome.MATCH for c in checks)
+        ):
             return Kind.UNVERIFIED  # only the text is similar: «ТМЛ-50» and «ТМЛ-35» are not compared
-        compared = not unreadable and all(a.code in query and a.code in candidate.attributes for a in hard)
+        compared = not unreadable and all(a.code in asked.values and a.code in candidate.attributes for a in hard)
         return Kind.SAME if compared and all(c.exact for c in checks) else Kind.ANALOG
 
 

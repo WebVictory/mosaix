@@ -10,12 +10,12 @@ otherwise take any wall thickness.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from analog_search.domain.cards import Card, CardKey, CardStore, Entry, ReferenceBook
 from analog_search.domain.features import same
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import Level
 from analog_search.domain.matching import Decision
 from analog_search.services.search import Correction, SearchService, Understanding
@@ -23,8 +23,7 @@ from analog_search.services.search import Correction, SearchService, Understandi
 REFERENCE_CANDIDATES = 10  # КСР names closest to the query that are read and compared
 
 
-@dataclass(frozen=True)
-class Seed:
+class Seed(Frozen):
     """One line of a seed file: what a specialist said about a row (by its number in the source file)."""
 
     row: int
@@ -76,7 +75,9 @@ class CardService:
         stats = {"decisions": 0, "kept": 0, "unknown_rows": 0}
         for item in json.loads(path.read_text(encoding="utf-8")):
             key = self._search.understand(item["query"]).key
-            for verdict in (Seed(v["row"], Decision(v["decision"]), v.get("note")) for v in item["verdicts"]):
+            for verdict in (
+                Seed(row=v["row"], decision=Decision(v["decision"]), note=v.get("note")) for v in item["verdicts"]
+            ):
                 position_id = self._cards.position_id(source, verdict.row)
                 if position_id is None:
                     stats["unknown_rows"] += 1
@@ -95,17 +96,16 @@ class CardService:
         cards = self._cards.cards()
         read = {card.id: self._search.understand(card.name) for card in cards}
         keys = {
-            card.id: CardKey(r.key, r.category.code if r.category else None, r.values)
+            card.id: CardKey(key=r.key, category_code=r.category.code if r.category else None, values=r.values)
             for card in cards
             if (r := read[card.id]).key != card.key
         }
         if not keys:
             return {"rekeyed": 0, "merged": 0}
         counts = self._cards.rekey(keys, self._search.knowledge.version)
-        if self._references:
-            for card in self._cards.cards():
-                if card.reference is None and card.id in keys and read[card.id].category:
-                    self._anchored(card, read[card.id])
+        for card in self._cards.cards():
+            if card.reference is None and card.id in keys:
+                self._anchored(card, read[card.id])
         return counts
 
     def export(self) -> list[dict[str, Any]]:
@@ -114,6 +114,8 @@ class CardService:
         return [_gold(card) for card in self._cards.cards() if card.links]
 
     def _anchored(self, card: Card, read: Understanding) -> Card:
+        if read.category is None or self._references is None:
+            return card
         hard = [a.code for a in read.category.attributes if a.level is Level.HARD]
         if not hard or read.declined or any(code not in read.values for code in hard):
             return card

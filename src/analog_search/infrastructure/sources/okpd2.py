@@ -37,7 +37,14 @@ def fetch(downloader: Downloader, root: Path) -> Path:
     files = sorted(p for p in directory.glob("*.docx"))
     write_manifest(
         directory,
-        Release(SourceKind.OKPD2, directory.name, stamp.date(), URL, tuple(p.name for p in files), sha256_of(files)),
+        Release(
+            source=SourceKind.OKPD2,
+            version=directory.name,
+            published=stamp.date(),
+            url=URL,
+            files=tuple(p.name for p in files),
+            sha256=sha256_of(files),
+        ),
     )
     return directory
 

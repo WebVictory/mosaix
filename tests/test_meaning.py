@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
 from analog_search.domain.judging import Judge
 from analog_search.domain.knowledge import Knowledge
 from analog_search.domain.matching import Candidate, Kind, Matcher, ScoringConfig, Verdict
+from analog_search.domain.positions import ParsedPosition
 from analog_search.domain.reading import NONE, Choice, Question, ReaderError
-from analog_search.repositories.knowledge import ParsedPosition
 from analog_search.repositories.memory import MemoryStore
 from analog_search.services.search import Reason, SearchService
 
@@ -48,7 +46,7 @@ def searched(
 
 def misparsed(positions: dict[int, ParsedPosition], *rows: int) -> list[ParsedPosition]:
     """The rows as if the rules had not recognized their category."""
-    return [replace(positions[r], category_code=None, attributes={}) for r in rows]
+    return [positions[r].model_copy(update={"category_code": None, "attributes": {}}) for r in rows]
 
 
 def test_row_of_another_category_is_checked_by_the_query_rules(
@@ -138,11 +136,13 @@ def test_without_embeddings_the_search_goes_on_by_spelling(
 
 def test_names_close_in_meaning_are_close_in_text() -> None:
     matcher = Matcher(ScoringConfig(meaning_floor=0.5))
-    candidate = Candidate(1, 1, "ИБП уличный", None, None, {}, similarity=0.1)
+    candidate = Candidate(
+        id=1, row=1, name="ИБП уличный", price=None, category_code=None, attributes={}, similarity=0.1
+    )
 
     assert matcher.text(candidate) == 0.1
-    assert matcher.text(replace(candidate, meaning=0.8)) == pytest.approx(0.6)
-    assert matcher.text(replace(candidate, meaning=0.3)) == 0.1  # unrelated: spelling decides
+    assert matcher.text(candidate.model_copy(update={"meaning": 0.8})) == pytest.approx(0.6)
+    assert matcher.text(candidate.model_copy(update={"meaning": 0.3})) == 0.1  # unrelated: spelling decides
 
 
 def test_nearest_rows_by_spelling_and_by_meaning(positions: dict[int, ParsedPosition]) -> None:

@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from analog_search.domain.frozen import Frozen
 from analog_search.domain.knowledge import (
     Attribute,
     AttributeStatus,
@@ -49,8 +49,7 @@ class InvalidEdit(ValueError):
     pass
 
 
-@dataclass(frozen=True)
-class Edit:
+class Edit(Frozen):
     """One change of the draft: a field of a category (attribute None) or of one of its attributes."""
 
     category: str
@@ -87,7 +86,7 @@ def current(knowledge: Knowledge, category_code: str, attribute_code: str | None
 def validated(knowledge: Knowledge, edit: Edit) -> Edit:
     """The edit with its value in canonical form and the value it replaces; InvalidEdit if it makes no sense."""
     previous = current(knowledge, edit.category, edit.attribute, edit.field)
-    return replace(edit, value=_value(knowledge, edit), previous=previous)
+    return edit.model_copy(update={"value": _value(knowledge, edit), "previous": previous})
 
 
 def apply(knowledge: Knowledge, edits: list[Edit]) -> Knowledge:
@@ -106,16 +105,22 @@ def apply(knowledge: Knowledge, edits: list[Edit]) -> Knowledge:
 
 def fingerprint(categories: tuple[Category, ...]) -> str:
     """sha256 of the content: the same knowledge, the same release."""
-    plain = json.dumps([asdict(c) for c in categories], ensure_ascii=False, sort_keys=True, default=str)
+    plain = json.dumps([c.model_dump() for c in categories], ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha256(plain.encode()).hexdigest()
 
 
 def _edited(category: Category, edits: list[Edit]) -> Category:
     if not edits:
         return category
-    fields = {e.field.value: tuple(e.value) for e in edits if e.attribute is None}
+    fields = {e.field: tuple(e.value) for e in edits if e.attribute is None}
     attributes = tuple(_edited_attribute(a, [e for e in edits if e.attribute == a.code]) for a in category.attributes)
-    return replace(category, **fields, attributes=attributes)
+    return category.model_copy(
+        update={
+            "triggers": fields.get(Field.TRIGGERS, category.triggers),
+            "anti_triggers": fields.get(Field.ANTI_TRIGGERS, category.anti_triggers),
+            "attributes": attributes,
+        }
+    )
 
 
 def _edited_attribute(attribute: Attribute, edits: list[Edit]) -> Attribute:
@@ -135,7 +140,7 @@ def _edited_attribute(attribute: Attribute, edits: list[Edit]) -> Attribute:
                 rule.pop(edit.field.value, None)
             case Field.STEP_TOLERANCE | Field.SUBSTITUTION:
                 rule[edit.field.value] = edit.value
-    return replace(attribute, **changes, rule=rule)
+    return attribute.model_copy(update={**changes, "rule": rule})
 
 
 def _value(knowledge: Knowledge, edit: Edit) -> Any:

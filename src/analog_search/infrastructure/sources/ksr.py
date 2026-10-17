@@ -47,7 +47,12 @@ def fetch_archive(downloader: Downloader, root: Path, archive: dict) -> Path:
     write_manifest(
         directory,
         Release(
-            SourceKind.KSR, version, published, FILE_URL + archive["filePath"], (target.name,), sha256_of([target])
+            source=SourceKind.KSR,
+            version=version,
+            published=published,
+            url=FILE_URL + archive["filePath"],
+            files=(target.name,),
+            sha256=sha256_of([target]),
         ),
     )
     return directory

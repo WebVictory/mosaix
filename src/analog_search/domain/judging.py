@@ -15,8 +15,6 @@ An unsure answer, or none (the model is down), leaves the candidate as the rules
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from analog_search.domain.matching import Assessment, Kind, Outcome, Verdict
 from analog_search.domain.reading import NONE, ChoiceReader, Question
 
@@ -62,7 +60,7 @@ class Judge:
     @staticmethod
     def _apply(assessment: Assessment, verdict: Verdict) -> Assessment:
         if verdict is Verdict.OTHER or assessment.kind is Kind.TEXT:
-            return replace(assessment, verdict=verdict)
+            return assessment.model_copy(update={"verdict": verdict})
         identical = (
             not assessment.foreign
             and not assessment.unreadable
@@ -70,4 +68,4 @@ class Judge:
             and all(c.outcome is Outcome.MATCH and c.exact for c in assessment.checks)
         )
         kind = Kind.SAME if verdict is Verdict.SAME and identical else Kind.ANALOG
-        return replace(assessment, verdict=verdict, kind=kind)
+        return assessment.model_copy(update={"verdict": verdict, "kind": kind})

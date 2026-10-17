@@ -6,11 +6,10 @@ import pytest
 
 from analog_search.app.config import PROJECT_ROOT
 from analog_search.domain.knowledge import Knowledge
+from analog_search.domain.positions import ParsedPosition, parse
 from analog_search.infrastructure import scoring_yaml
 from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
-from analog_search.repositories.knowledge import ParsedPosition
 from analog_search.repositories.memory import MemoryStore
-from analog_search.services.knowledge import parse
 from analog_search.services.search import SearchService
 
 

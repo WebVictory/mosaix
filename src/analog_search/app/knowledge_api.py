@@ -106,7 +106,7 @@ def knowledge(request: Request) -> KnowledgeOut:
     return KnowledgeOut(
         active_version=draft.active.version,
         draft_version=draft.knowledge.version,
-        categories=[_category(c, usage.get(c.code, Usage(0, []))) for c in draft.knowledge.categories],
+        categories=[_category(c, usage.get(c.code, Usage(rows=0, samples=[]))) for c in draft.knowledge.categories],
         edits=[_edit(e) for e in draft.edits],
         options={
             "level": list(Level),
@@ -125,7 +125,14 @@ def suggestions(request: Request) -> list[Disagreement]:
 @router.post("/api/knowledge/edits")
 def edit(request: Request, body: EditRequest) -> EditOut | None:
     made = _editor(request).edit(
-        editing.Edit(body.category, body.attribute, body.field, body.value, author=body.author, reason=body.reason)
+        editing.Edit(
+            category=body.category,
+            attribute=body.attribute,
+            field=body.field,
+            value=body.value,
+            author=body.author,
+            reason=body.reason,
+        )
     )
     return _edit(made) if made else None
 

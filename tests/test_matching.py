@@ -8,11 +8,21 @@ import pytest
 
 from analog_search.domain.features import FireRating, IPRating, Pattern, Quantity
 from analog_search.domain.knowledge import Attribute, AttributeStatus, Category, Comparison, Level, Provenance
-from analog_search.domain.matching import Candidate, Kind, Matcher, Outcome, ScoringConfig, satisfies
+from analog_search.domain.matching import Candidate, Kind, Matcher, Outcome, Requirements, ScoringConfig, satisfies
 
 
 def attribute(code: str, level: Level, comparison: Comparison, **rule: Any) -> Attribute:
-    return Attribute(code, code, None, level, comparison, Provenance.SPECIALIST, AttributeStatus.APPROVED, None, rule)
+    return Attribute(
+        code=code,
+        name=code,
+        unit=None,
+        level=level,
+        comparison=comparison,
+        provenance=Provenance.SPECIALIST,
+        status=AttributeStatus.APPROVED,
+        source_ref=None,
+        rule=rule,
+    )
 
 
 POWER = attribute("мощность", Level.HARD, Comparison.STEP, series=[630, 1000, 1250, 1600], step_tolerance=0)
@@ -41,16 +51,20 @@ def test_satisfies(rule: Attribute, extractor: Any, query: Any, candidate: Any, 
     assert satisfies(rule, extractor, query, candidate) is ok
 
 
-BREAKERS = Category("avtomat", "автомат", "аппараты", attributes=(CURRENT, IP))
+BREAKERS = Category(code="avtomat", name="автомат", group="аппараты", attributes=(CURRENT, IP))
 EXTRACTORS = {"номинальный_ток": Pattern(r"(\d+)\s*а"), "степень_защиты": IPRating()}
 
 
 def candidate(attributes: dict[str, Any], similarity: float = 0.5, category: str = "avtomat") -> Candidate:
-    return Candidate(1, 1, "автомат", 100.0, category, attributes, similarity)
+    return Candidate(
+        id=1, row=1, name="автомат", price=100.0, category_code=category, attributes=attributes, similarity=similarity
+    )
 
 
 def assess(query: dict[str, Any], offered: Candidate):
-    return Matcher(ScoringConfig()).assess(BREAKERS, EXTRACTORS, query, offered)
+    return Matcher(ScoringConfig()).assess(
+        Requirements(category=BREAKERS, extractors=EXTRACTORS, values=query), offered
+    )
 
 
 def test_same_values_make_a_same_candidate_with_a_full_score_breakdown() -> None:
@@ -85,9 +99,13 @@ def test_nothing_hard_confirmed_is_unverified_not_an_analog() -> None:
 def test_hard_value_the_query_states_but_nobody_read_is_unverified() -> None:
     """«3х2,5+1х1,5»: the query is not silent about the section, it is unreadable."""
     offered = candidate({"номинальный_ток": 6.0})
-    result = Matcher(ScoringConfig()).assess(
-        BREAKERS, EXTRACTORS, {"номинальный_ток": 6.0}, offered, frozenset({"номинальный_ток"})
+    asked = Requirements(
+        category=BREAKERS,
+        extractors=EXTRACTORS,
+        values={"номинальный_ток": 6.0},
+        declined=frozenset({"номинальный_ток"}),
     )
+    result = Matcher(ScoringConfig()).assess(asked, offered)
 
     assert result.kind is Kind.UNVERIFIED
     assert [a.code for a in result.unreadable] == ["номинальный_ток"]
@@ -95,15 +113,14 @@ def test_hard_value_the_query_states_but_nobody_read_is_unverified() -> None:
 
 def test_same_needs_every_hard_attribute_read_and_asked() -> None:
     voltage = attribute("напряжение", Level.HARD, Comparison.EQUAL)
-    breakers = Category("avtomat", "автомат", "аппараты", attributes=(CURRENT, voltage))
+    breakers = Category(code="avtomat", name="автомат", group="аппараты", attributes=(CURRENT, voltage))
     matcher = Matcher(ScoringConfig())
     query = {"номинальный_ток": 6.0}
 
-    no_reader = matcher.assess(breakers, {"номинальный_ток": EXTRACTORS["номинальный_ток"]}, query, candidate(query))
+    current = {"номинальный_ток": EXTRACTORS["номинальный_ток"]}
+    no_reader = matcher.assess(Requirements(category=breakers, extractors=current, values=query), candidate(query))
     unasked = matcher.assess(
-        breakers,
-        {"номинальный_ток": EXTRACTORS["номинальный_ток"], "напряжение": Quantity("voltage", 1)},
-        query,
+        Requirements(category=breakers, extractors={**current, "напряжение": Quantity("voltage", 1)}, values=query),
         candidate({**query, "напряжение": 230.0}),
     )
 

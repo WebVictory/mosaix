@@ -51,7 +51,7 @@ class CorrectionIn(BaseModel):
     values: dict[str, str | None] = Field(default_factory=dict)  # attribute code → OptionOut.id; null — not stated
 
     def correction(self) -> Correction:
-        return Correction(self.category, self.values)
+        return Correction(category=self.category, values=self.values)
 
 
 class SearchRequest(BaseModel):

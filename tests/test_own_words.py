@@ -10,6 +10,7 @@ import pytest
 
 from analog_search.app.config import Settings
 from analog_search.domain.knowledge import Category, Knowledge, normalize
+from analog_search.domain.positions import ParsedPosition
 from analog_search.domain.reading import (
     CATEGORY,
     NONE,
@@ -22,7 +23,6 @@ from analog_search.domain.reading import (
 )
 from analog_search.domain.spoken import spoken_numbers
 from analog_search.infrastructure.llm.embeddings import CachedEmbedder, OpenRouterEmbedder
-from analog_search.repositories.knowledge import ParsedPosition
 from analog_search.repositories.memory import MemoryStore
 from analog_search.services.search import SearchService, Source
 

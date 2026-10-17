@@ -15,7 +15,8 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass
+
+from analog_search.domain.frozen import Frozen
 
 MIN_LENGTH = 4  # shorter words are marks and units: «ПВХ», «кВА», «IP»
 
@@ -32,16 +33,14 @@ _ENDING = re.compile(
 )
 
 
-@dataclass(frozen=True)
-class Fix:
+class Fix(Frozen):
     """A word of the query and what it was taken for."""
 
     typed: str
     meant: str
 
 
-@dataclass(frozen=True)
-class Spelled:
+class Spelled(Frozen):
     text: str  # the query with the fixes
     fixes: tuple[Fix, ...]
 
@@ -64,11 +63,11 @@ class Speller:
             unfinished = typing and i == len(tokens) - 1 and token.end() == len(query)
             fixed = None if unfinished and self._started(token[0]) else self._fixed(token[0])
             if fixed is not None:
-                fixes.append(Fix(token[0], fixed))
+                fixes.append(Fix(typed=token[0], meant=fixed))
             parts.append(fixed or token[0])
             end = token.end()
         parts.append(query[end:])
-        return Spelled("".join(parts), tuple(fixes))
+        return Spelled(text="".join(parts), fixes=tuple(fixes))
 
     def _fixed(self, token: str) -> str | None:
         """The token retyped in the Russian layout, or its word replaced by the nearest known one."""

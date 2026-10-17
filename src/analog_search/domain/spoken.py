@@ -57,7 +57,7 @@ def _forms(table: dict) -> dict[str, float]:
     return {form: float(value) for value, forms in table.items() for form in forms.split()}
 
 
-_UNIT_WORDS, _TEN_WORDS, _HUNDRED_WORDS, _HALF_WORDS = map(_forms, (_UNITS, _TENS, _HUNDREDS, _HALF))
+_UNIT_WORDS, _TEN_WORDS, _HUNDRED_WORDS, _HALF_WORDS = _forms(_UNITS), _forms(_TENS), _forms(_HUNDREDS), _forms(_HALF)
 _WORD = re.compile(r"[а-я]+")
 _NUMBER_WORD = "(?:{})(?![а-я])".format(
     "|".join(sorted({**_UNIT_WORDS, **_TEN_WORDS, **_HUNDRED_WORDS, **_HALF_WORDS}, key=len, reverse=True))

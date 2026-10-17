@@ -403,7 +403,7 @@ class GoldenCardRow(Base):
 
     key — category and the values read from a query, «cable_control|{"cores": 7, …}»; a query nothing was read
     from is keyed by its text. It is made with one knowledge release: a new release may read the query
-    differently, then the card is re-keyed, and cards that now read the same are merged (docs/steps.md, step 11).
+    differently, then the card is re-keyed, and cards that now read the same are merged (ARCHITECTURE.md, step 9).
     reference — the ideal from a reference book (КСР resource), if one reads into the same values.
     """
 

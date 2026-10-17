@@ -9,3 +9,17 @@ __pycache__/
 data/sources/
 # Vectors of the base and of queries: computed with the key, ~25 MB, not stored in git
 data/llm/embeddings.jsonl
+output/
+.claude/
+
+# Local reference material, not part of the project
+analog-search/
+Andrestaff-main/
+old-solution.tar.gz
+buines-req.text
+data-collection-task.md
+search-flow-notes.md
+senior-assignment-solution.md
+*.docx
+/*.xlsx
+/*.txt

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 
-from analog_search.app.config import PROJECT_ROOT
+from app.config import PROJECT_ROOT
 
 sys.path.insert(0, str(PROJECT_ROOT / "evaluation"))  # the evaluator is a script, not a package
 

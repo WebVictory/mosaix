@@ -6,9 +6,10 @@ from typing import Any
 
 import pytest
 
-from analog_search.domain.features import FireRating, IPRating, Pattern, Quantity
-from analog_search.domain.knowledge import Attribute, AttributeStatus, Category, Comparison, Level, Provenance
-from analog_search.domain.matching import Candidate, Kind, Matcher, Outcome, Requirements, ScoringConfig, satisfies
+from app.search_config import SEARCH
+from domain.features import FireRating, IPRating, Pattern, Quantity
+from domain.knowledge import Attribute, AttributeStatus, Category, Comparison, Level, Provenance
+from domain.matching import Candidate, Kind, Matcher, Outcome, Requirements, satisfies
 
 
 def attribute(code: str, level: Level, comparison: Comparison, **rule: Any) -> Attribute:
@@ -62,9 +63,7 @@ def candidate(attributes: dict[str, Any], similarity: float = 0.5, category: str
 
 
 def assess(query: dict[str, Any], offered: Candidate):
-    return Matcher(ScoringConfig()).assess(
-        Requirements(category=BREAKERS, extractors=EXTRACTORS, values=query), offered
-    )
+    return Matcher(SEARCH.scoring).assess(Requirements(category=BREAKERS, extractors=EXTRACTORS, values=query), offered)
 
 
 def test_same_values_make_a_same_candidate_with_a_full_score_breakdown() -> None:
@@ -105,7 +104,7 @@ def test_hard_value_the_query_states_but_nobody_read_is_unverified() -> None:
         values={"номинальный_ток": 6.0},
         declined=frozenset({"номинальный_ток"}),
     )
-    result = Matcher(ScoringConfig()).assess(asked, offered)
+    result = Matcher(SEARCH.scoring).assess(asked, offered)
 
     assert result.kind is Kind.UNVERIFIED
     assert [a.code for a in result.unreadable] == ["номинальный_ток"]
@@ -114,7 +113,7 @@ def test_hard_value_the_query_states_but_nobody_read_is_unverified() -> None:
 def test_same_needs_every_hard_attribute_read_and_asked() -> None:
     voltage = attribute("напряжение", Level.HARD, Comparison.EQUAL)
     breakers = Category(code="avtomat", name="автомат", group="аппараты", attributes=(CURRENT, voltage))
-    matcher = Matcher(ScoringConfig())
+    matcher = Matcher(SEARCH.scoring)
     query = {"номинальный_ток": 6.0}
 
     current = {"номинальный_ток": EXTRACTORS["номинальный_ток"]}

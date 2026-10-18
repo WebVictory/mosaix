@@ -6,13 +6,13 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from analog_search.app.api import create_app
-from analog_search.app.bootstrap import Services
-from analog_search.domain.matching import Decision
-from analog_search.domain.positions import ParsedPosition
-from analog_search.repositories.memory import MemoryCards
-from analog_search.services.cards import CardService
-from analog_search.services.search import Correction, InvalidQuery, SearchService, Source
+from app.api import create_app
+from app.bootstrap import Services
+from domain.matching import Decision
+from domain.positions import ParsedPosition
+from repositories.memory import MemoryCards
+from services.cards import CardService
+from services.search import Correction, InvalidQuery, SearchService, Source
 
 CABLE = "кабель контрольный 7 жил"  # the section is not stated
 SECTION_1_5 = "v2"  # 1,5 мм² in the series of сечение_жилы

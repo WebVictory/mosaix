@@ -8,10 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from analog_search.app.config import Settings
-from analog_search.domain.knowledge import Category, Knowledge, normalize
-from analog_search.domain.positions import ParsedPosition
-from analog_search.domain.reading import (
+from app.config import Settings
+from domain.knowledge import Category, Knowledge, normalize
+from domain.positions import ParsedPosition
+from domain.reading import (
     CATEGORY,
     NONE,
     Choice,
@@ -21,10 +21,10 @@ from analog_search.domain.reading import (
     question,
     verify,
 )
-from analog_search.domain.spoken import spoken_numbers
-from analog_search.infrastructure.llm.embeddings import CachedEmbedder, OpenRouterEmbedder
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.search import SearchService, Source
+from domain.spoken import spoken_numbers
+from infrastructure.llm.embeddings import CachedEmbedder, OpenRouterEmbedder
+from repositories.memory import MemoryStore
+from services.search import SearchService, Source
 
 
 class CategoryReader:
@@ -188,7 +188,7 @@ def test_query_no_trigger_word_matched_is_searched_in_the_category_the_model_cho
 ) -> None:
     query = "трансформатр сухой 1250ква"
     reading = ChoiceReading(CategoryReader("силов"), knowledge.categories, 0.9)
-    search = SearchService(knowledge, MemoryStore(knowledge.version, list(positions.values())), service.config, reading)
+    search = SearchService(knowledge, MemoryStore(knowledge.version, list(positions.values())), service.rules, reading)
 
     by_rules, result = service.search(query), search.search(query)
 

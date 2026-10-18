@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from analog_search.domain.judging import Judge
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.matching import Candidate, Kind, Matcher, ScoringConfig, Verdict
-from analog_search.domain.positions import ParsedPosition
-from analog_search.domain.reading import NONE, Choice, Question, ReaderError
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.search import Reason, SearchService
+from app.search_config import SEARCH
+from domain.gate import Reason
+from domain.judging import Judge
+from domain.knowledge import Knowledge
+from domain.matching import Candidate, Kind, Matcher, Verdict
+from domain.positions import ParsedPosition
+from domain.reading import NONE, Choice, Question, ReaderError
+from repositories.memory import MemoryStore
+from services.search import SearchService
 
 CABLE_7X15 = "кабель КВВГнг-LS 7*1.5"
 FORMULA = "Кабель ВВГнг(А)-LS 3х2,5+1х1,5"  # not read by the rules: every candidate stays unverified
@@ -40,8 +42,8 @@ def searched(
     reader: VerdictReader | None = None,
     **kwargs,
 ) -> SearchService:
-    judge = Judge(reader, 0.9) if reader else None
-    return SearchService(knowledge, MemoryStore(knowledge.version, positions), service.config, judge=judge, **kwargs)
+    judge = Judge(reader, SEARCH.confidence.min, SEARCH.candidates.judge_k) if reader else None
+    return SearchService(knowledge, MemoryStore(knowledge.version, positions), service.rules, judge=judge, **kwargs)
 
 
 def misparsed(positions: dict[int, ParsedPosition], *rows: int) -> list[ParsedPosition]:
@@ -135,7 +137,7 @@ def test_without_embeddings_the_search_goes_on_by_spelling(
 
 
 def test_names_close_in_meaning_are_close_in_text() -> None:
-    matcher = Matcher(ScoringConfig(meaning_floor=0.5))
+    matcher = Matcher(SEARCH.scoring.model_copy(update={"meaning_floor": 0.5}))
     candidate = Candidate(
         id=1, row=1, name="ИБП уличный", price=None, category_code=None, attributes={}, similarity=0.1
     )

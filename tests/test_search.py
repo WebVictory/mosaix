@@ -5,14 +5,15 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from analog_search.app.api import create_app
-from analog_search.app.bootstrap import Services
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.matching import Kind
-from analog_search.domain.positions import ParsedPosition
-from analog_search.repositories.memory import MemoryCards, MemoryStore
-from analog_search.services.cards import CardService
-from analog_search.services.search import InvalidQuery, Reason, SearchService
+from app.api import create_app
+from app.bootstrap import Services
+from domain.gate import Reason
+from domain.knowledge import Knowledge
+from domain.matching import Kind
+from domain.positions import ParsedPosition
+from repositories.memory import MemoryCards, MemoryStore
+from services.cards import CardService
+from services.search import InvalidQuery, SearchService
 
 
 def rows(service: SearchService, query: str) -> list[int]:
@@ -78,7 +79,7 @@ def test_query_without_words_or_too_long_is_invalid(service: SearchService, quer
 def test_stats_warn_when_positions_were_parsed_by_another_release(
     service: SearchService, knowledge: Knowledge, positions: dict[int, ParsedPosition]
 ) -> None:
-    stale = SearchService(knowledge, MemoryStore("0-old", list(positions.values())), service.config)
+    stale = SearchService(knowledge, MemoryStore("0-old", list(positions.values())), service.rules)
 
     assert service.stats()["warnings"] == []
     assert "0-old" in stale.stats()["warnings"][0]

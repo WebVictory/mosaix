@@ -6,21 +6,21 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from analog_search.app.api import create_app
-from analog_search.app.bootstrap import Services
-from analog_search.app.config import PROJECT_ROOT
-from analog_search.domain.cards import CardKey, Entry
-from analog_search.domain.editing import Edit, Field, InvalidEdit, apply, validated
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.matching import Decision
-from analog_search.domain.positions import ParsedPosition
-from analog_search.infrastructure.knowledge import positions_xlsx
-from analog_search.infrastructure.knowledge.yaml_files import YamlKnowledge
-from analog_search.repositories.memory import MemoryCards, MemoryKnowledge, MemoryPositions, MemoryStore
-from analog_search.services.cards import CardService
-from analog_search.services.editor import KnowledgeEditor
-from analog_search.services.knowledge import KnowledgeService
-from analog_search.services.search import SearchService
+from app.api import create_app
+from app.bootstrap import Services
+from app.config import PROJECT_ROOT
+from domain.cards import CardKey, Entry
+from domain.editing import Edit, Field, InvalidEdit, apply, validated
+from domain.knowledge import Knowledge
+from domain.matching import Decision
+from domain.positions import ParsedPosition
+from infrastructure.knowledge import positions_xlsx
+from infrastructure.knowledge.yaml_files import YamlKnowledge
+from repositories.memory import MemoryCards, MemoryKnowledge, MemoryPositions, MemoryStore
+from services.cards import CardService
+from services.editor import KnowledgeEditor
+from services.knowledge import KnowledgeService
+from services.search import SearchService
 
 SOURCE = "positions.xlsx"
 TRANSFORMER = "трансформатор силовой сухой 1000 кВА"  # 1877 is 1250 кВА: the rules allow no step
@@ -31,7 +31,7 @@ class Bench:
     """The editor over the research release and the workbook, everything in memory."""
 
     def __init__(self, knowledge: Knowledge, positions: dict[int, ParsedPosition], service: SearchService):
-        self.config = service.config
+        self.rules = service.rules
         self.cards = MemoryCards(list(positions.values()))
         self.store = MemoryKnowledge(knowledge)
         self.positions = MemoryPositions(SOURCE, list(positions.values()))
@@ -40,7 +40,7 @@ class Bench:
             KnowledgeService(YamlKnowledge(PROJECT_ROOT / "research"), positions_xlsx.read, self.store, self.positions),
             self.positions,
             self.cards,
-            self.config,
+            self.rules,
             MemoryStore,
             SOURCE,
             PROJECT_ROOT / "evaluation" / "gold_queries.json",
@@ -49,7 +49,7 @@ class Bench:
     def services(self) -> Services:
         knowledge = self.store.active()
         store = MemoryStore(knowledge.version, self.positions.stored()[SOURCE])
-        search = SearchService(knowledge, store, self.config, cards=self.cards)
+        search = SearchService(knowledge, store, self.rules, cards=self.cards)
         return Services(search, CardService(search, self.cards), self.editor)
 
 

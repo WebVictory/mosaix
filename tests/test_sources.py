@@ -9,7 +9,7 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from analog_search.infrastructure.sources import etim, ksr, ktru, okpd2
+from infrastructure.sources import etim, ksr, ktru, okpd2
 
 # --- КСР ---
 

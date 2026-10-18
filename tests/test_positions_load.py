@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from analog_search.app.config import PROJECT_ROOT
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.reading import ReaderError
-from analog_search.infrastructure.knowledge import positions_xlsx
-from analog_search.infrastructure.knowledge.yaml_files import YamlKnowledge
-from analog_search.repositories.memory import MemoryKnowledge, MemoryPositions
-from analog_search.services.knowledge import KnowledgeService
+from app.config import PROJECT_ROOT
+from domain.knowledge import Knowledge
+from domain.reading import ReaderError
+from infrastructure.knowledge import positions_xlsx
+from infrastructure.knowledge.yaml_files import YamlKnowledge
+from repositories.memory import MemoryKnowledge, MemoryPositions
+from services.knowledge import KnowledgeService
 
 
 class _Keyless:

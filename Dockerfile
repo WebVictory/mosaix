@@ -7,7 +7,6 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 COPY src ./src
 COPY research ./research
-COPY config ./config
 COPY static ./static
 COPY demo ./demo
 COPY evaluation/gold_queries.json ./evaluation/

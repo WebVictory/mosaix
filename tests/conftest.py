@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from analog_search.app.config import PROJECT_ROOT
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.positions import ParsedPosition, parse
-from analog_search.infrastructure import scoring_yaml
-from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.search import SearchService
+from app.config import PROJECT_ROOT
+from app.search_config import SEARCH
+from domain.knowledge import Knowledge
+from domain.positions import ParsedPosition, parse
+from infrastructure.knowledge import positions_xlsx, yaml_files
+from repositories.memory import MemoryStore
+from services.search import SearchService
 
 
 @pytest.fixture(scope="session")
@@ -26,5 +26,4 @@ def positions(knowledge: Knowledge) -> dict[int, ParsedPosition]:
 
 @pytest.fixture(scope="session")
 def service(knowledge: Knowledge, positions: dict[int, ParsedPosition]) -> SearchService:
-    config = scoring_yaml.read(PROJECT_ROOT / "config" / "search.yaml")
-    return SearchService(knowledge, MemoryStore(knowledge.version, list(positions.values())), config)
+    return SearchService(knowledge, MemoryStore(knowledge.version, list(positions.values())), SEARCH)

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from analog_search.app.config import PROJECT_ROOT
-from analog_search.domain.knowledge import (
+from app.config import PROJECT_ROOT
+from domain.knowledge import (
     SERVICE_FLAG,
     Category,
     Classifier,
@@ -17,8 +17,8 @@ from analog_search.domain.knowledge import (
     normalize,
     slug,
 )
-from analog_search.domain.positions import parse
-from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
+from domain.positions import parse
+from infrastructure.knowledge import positions_xlsx, yaml_files
 
 RESEARCH = PROJECT_ROOT / "research"
 

@@ -28,15 +28,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from baseline import Baseline
 
-from analog_search.app.bootstrap import choice_reading, models
-from analog_search.app.config import Settings
-from analog_search.domain.judging import Judge
-from analog_search.domain.positions import parse
-from analog_search.infrastructure import scoring_yaml
-from analog_search.infrastructure.knowledge import positions_xlsx, yaml_files
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.knowledge import embed, read_hard
-from analog_search.services.search import SearchService
+from app.bootstrap import choice_reading, models
+from app.config import Settings
+from app.search_config import SEARCH
+from domain.judging import Judge
+from domain.positions import parse
+from infrastructure.knowledge import positions_xlsx, yaml_files
+from repositories.memory import MemoryStore
+from services.knowledge import embed, read_hard
+from services.search import SearchService
 
 HERE = Path(__file__).parent
 
@@ -159,13 +159,12 @@ def main() -> None:
     gold = [Gold(**g) for g in json.loads(args.gold.read_text(encoding="utf-8"))]
     knowledge = yaml_files.read(settings.knowledge_dir)
     records = positions_xlsx.read(settings.positions_file)
-    config = scoring_yaml.read(settings.search_config)
     positions = parse(knowledge, records)
     info = {
         "Запросов": f"{len(gold)} (match {sum(g.expected_kind == 'match' for g in gold)}, "
         f"no_match {sum(g.expected_kind == 'no_match' for g in gold)})",
         "Справочник": knowledge.version,
-        "Порог": str(config.threshold),
+        "Порог": str(SEARCH.gate.threshold),
     }
 
     runs: dict[str, dict[str, Answer]] = {}
@@ -177,16 +176,16 @@ def main() -> None:
         with_model = SearchService(
             knowledge,
             MemoryStore(knowledge.version, read, vectors),
-            config,
+            SEARCH,
             reading,
             settings.llm_mode,
             embedder=used.embedder if vectors else None,
-            judge=Judge(used.reader, settings.llm_min_confidence, config.judge_k),
+            judge=Judge(used.reader, SEARCH.confidence.min, SEARCH.candidates.judge_k),
         )
         runs["Правила + ИИ"], elapsed_ms = _run(with_model, gold)
         info["ИИ"] = (
-            f"{settings.llm_model}, режим {settings.llm_mode}, порог уверенности {settings.llm_min_confidence} "
-            f"(число, найденное в тексте, — {settings.llm_min_confidence_stated}); "
+            f"{settings.llm_model}, режим {settings.llm_mode}, порог уверенности {SEARCH.confidence.min} "
+            f"(число, найденное в тексте, — {SEARCH.confidence.stated}); "
             f"база: спрошено {counts['llm_asked']} поз., прочитано {counts['llm_read']}, ошибок {counts['llm_failed']}"
         )
         info["Эмбеддинги"] = (
@@ -195,7 +194,7 @@ def main() -> None:
             else "нет: поиск только по написанию"
         )
         info["Среднее время запроса с ИИ (в памяти)"] = f"{elapsed_ms:.0f} мс"
-    rules = SearchService(knowledge, MemoryStore(knowledge.version, positions), config)
+    rules = SearchService(knowledge, MemoryStore(knowledge.version, positions), SEARCH)
     runs["Только правила"], elapsed_ms = _run(rules, gold)
     info["Среднее время запроса по правилам (в памяти)"] = f"{elapsed_ms:.0f} мс"
     baseline, base = Baseline(records), {}

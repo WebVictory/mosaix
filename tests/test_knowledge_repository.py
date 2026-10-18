@@ -7,24 +7,24 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import delete, select, update
 
-from analog_search.app.config import PROJECT_ROOT, Settings
-from analog_search.domain.cards import CardKey, Entry, Reference, UnknownPosition
-from analog_search.domain.editing import Edit, Field, fingerprint
-from analog_search.domain.knowledge import Category, Knowledge
-from analog_search.domain.matching import Decision
-from analog_search.domain.positions import ParsedPosition
-from analog_search.infrastructure.knowledge import yaml_files
-from analog_search.repositories.cards import CardRepository
-from analog_search.repositories.database import Database
-from analog_search.repositories.knowledge import KnowledgeRepository, PositionRepository
-from analog_search.repositories.orm import (
+from app.config import PROJECT_ROOT, Settings
+from domain.cards import CardKey, Entry, Reference, UnknownPosition
+from domain.editing import Edit, Field, fingerprint
+from domain.knowledge import Category, Knowledge
+from domain.matching import Decision
+from domain.positions import ParsedPosition
+from infrastructure.knowledge import yaml_files
+from repositories.cards import CardRepository
+from repositories.database import Database
+from repositories.knowledge import KnowledgeRepository, PositionRepository
+from repositories.orm import (
     DecisionRow,
     GoldenCardRow,
     KnowledgeEditRow,
     KnowledgeReleaseRow,
     PositionRow,
 )
-from analog_search.repositories.search import SearchRepository
+from repositories.search import SearchRepository
 
 pytestmark = pytest.mark.integration
 

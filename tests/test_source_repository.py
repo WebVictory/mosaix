@@ -7,11 +7,11 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import delete, func, select
 
-from analog_search.app.config import Settings
-from analog_search.domain.sources import KtruCharacteristic, KtruPosition, Okpd2Node, Release, SourceKind
-from analog_search.repositories.database import Database
-from analog_search.repositories.orm import KtruCharacteristicRow, Okpd2NodeRow, SourceReleaseRow
-from analog_search.repositories.sources import SourceRepository
+from app.config import Settings
+from domain.sources import KtruCharacteristic, KtruPosition, Okpd2Node, Release, SourceKind
+from repositories.database import Database
+from repositories.orm import KtruCharacteristicRow, Okpd2NodeRow, SourceReleaseRow
+from repositories.sources import SourceRepository
 
 pytestmark = pytest.mark.integration
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analog_search.domain.sources import Edition, KtruPosition, Release, SourceKind
-from analog_search.infrastructure.sources.formats import formats
-from analog_search.infrastructure.sources.store import ReleaseFiles, read_manifest
-from analog_search.services.sources import SourceService
+from domain.sources import Edition, KtruPosition, Release, SourceKind
+from infrastructure.sources.formats import formats
+from infrastructure.sources.store import ReleaseFiles, read_manifest
+from services.sources import SourceService
 from tests.test_sources import KTRU_XML
 
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from analog_search.domain.features import Extractors
-from analog_search.domain.knowledge import Classifier, Knowledge, normalize
-from analog_search.domain.positions import ParsedPosition
-from analog_search.domain.trigrams import similarity, trigrams
+from domain.features import Extractors
+from domain.knowledge import Classifier, Knowledge, normalize
+from domain.positions import ParsedPosition
+from domain.trigrams import similarity, trigrams
 
 
 def read(knowledge: Knowledge, text: str) -> tuple[str | None, dict]:

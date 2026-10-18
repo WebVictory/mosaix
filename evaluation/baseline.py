@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from analog_search.domain.knowledge import normalize
-from analog_search.domain.positions import PositionRecord
-from analog_search.domain.trigrams import similarity, trigrams
+from domain.knowledge import normalize
+from domain.positions import PositionRecord
+from domain.trigrams import similarity, trigrams
 
 
 @dataclass(frozen=True)

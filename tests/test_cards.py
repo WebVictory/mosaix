@@ -5,16 +5,17 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from analog_search.app.api import create_app
-from analog_search.app.bootstrap import Services
-from analog_search.app.config import PROJECT_ROOT
-from analog_search.domain.cards import Reference, UnknownPosition, card_key
-from analog_search.domain.knowledge import Knowledge
-from analog_search.domain.matching import Decision, Kind, Verdict
-from analog_search.domain.positions import ParsedPosition
-from analog_search.repositories.memory import MemoryCards
-from analog_search.services.cards import CardService
-from analog_search.services.search import Reason, SearchService
+from app.api import create_app
+from app.bootstrap import Services
+from app.config import PROJECT_ROOT
+from domain.cards import Reference, UnknownPosition, card_key
+from domain.gate import Reason
+from domain.knowledge import Knowledge
+from domain.matching import Decision, Kind, Verdict
+from domain.positions import ParsedPosition
+from repositories.memory import MemoryCards
+from services.cards import CardService
+from services.search import SearchService
 from tests.test_meaning import VerdictReader, searched
 
 CABLE = "кабель КВВГнг-LS 7*1.5"

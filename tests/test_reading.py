@@ -9,16 +9,17 @@ from pathlib import Path
 import httpx
 import pytest
 
-from analog_search.domain.features import Vocabulary
-from analog_search.domain.knowledge import Attribute, Category, Knowledge, normalize
-from analog_search.domain.matching import Kind
-from analog_search.domain.positions import ParsedPosition
-from analog_search.domain.reading import NONE, OTHER, Choice, ChoiceReading, Question, ReaderError, question, verify
-from analog_search.infrastructure.llm.cache import CachedReader
-from analog_search.infrastructure.llm.jev import JevReader
-from analog_search.repositories.memory import MemoryStore
-from analog_search.services.knowledge import read_hard
-from analog_search.services.search import Reason, SearchService, Source
+from domain.features import Vocabulary
+from domain.gate import Reason
+from domain.knowledge import Attribute, Category, Knowledge, normalize
+from domain.matching import Kind
+from domain.positions import ParsedPosition
+from domain.reading import NONE, OTHER, Choice, ChoiceReading, Question, ReaderError, question, verify
+from infrastructure.llm.cache import CachedReader
+from infrastructure.llm.jev import JevReader
+from repositories.memory import MemoryStore
+from services.knowledge import read_hard
+from services.search import SearchService, Source
 
 
 class FirstNumberReader:
@@ -200,7 +201,7 @@ def test_jev_answer_outside_the_question_is_an_error(knowledge: Knowledge) -> No
 
 
 def test_jev_retries_then_gives_up(monkeypatch: pytest.MonkeyPatch, knowledge: Knowledge) -> None:
-    monkeypatch.setattr("analog_search.infrastructure.llm.jev.time.sleep", lambda _: None)
+    monkeypatch.setattr("infrastructure.llm.jev.time.sleep", lambda _: None)
     asked = question(attribute(lug(knowledge), "сечение"), None)
     assert asked is not None
     statuses = iter([503, 200])
@@ -226,7 +227,7 @@ def test_duct_thickness_read_by_the_model_is_checked_instead_of_unread(
 ) -> None:
     reading = ChoiceReading(FirstNumberReader(), knowledge.categories, 0.9)
     read, counts = read_hard(knowledge, list(positions.values()), reading, workers=2)
-    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.config, reading, "live")
+    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.rules, reading, "live")
 
     by_rules = service.search(DUCT).candidates[0]
     result = search.search(DUCT)
@@ -251,7 +252,7 @@ def test_model_failure_leaves_the_rules_reading(
 ) -> None:
     reading = ChoiceReading(FailingReader(), knowledge.categories, 0.9)
     read, counts = read_hard(knowledge, ducts(positions), reading, workers=2)
-    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.config, reading, "live")
+    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.rules, reading, "live")
 
     assert read == ducts(positions) and counts["llm_failed"] == counts["llm_asked"] > 0
     best = search.search(DUCT).candidates[0]
@@ -263,7 +264,7 @@ def test_value_outside_the_series_is_not_silence(
 ) -> None:
     reading = ChoiceReading(FirstNumberReader(unlisted=True), knowledge.categories, 0.9)
     read, _ = read_hard(knowledge, ducts(positions), reading, workers=2)
-    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.config, reading, "live")
+    search = SearchService(knowledge, MemoryStore(knowledge.version, read), service.rules, reading, "live")
     query = "Воздуховод оцинкованный d=200 толщина 3 мм"  # 3 мм is not in the series
 
     duct = next(c for c in knowledge.categories if c.code == "vozdukhovod")

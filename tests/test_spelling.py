@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from analog_search.app.api import create_app
-from analog_search.app.bootstrap import Services
-from analog_search.domain.spelling import Speller
-from analog_search.repositories.memory import MemoryCards
-from analog_search.services.cards import CardService
-from analog_search.services.search import SearchService
+from app.api import create_app
+from app.bootstrap import Services
+from domain.spelling import Speller
+from repositories.memory import MemoryCards
+from services.cards import CardService
+from services.search import SearchService
 
 BASE = ["Кабель силовой ВВГнг(A)-LS 3х2,5", "Кабель контрольный", "Огнетушитель порошковая зарядка", "ПВХ"]
 

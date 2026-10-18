@@ -5,8 +5,10 @@
 
 ## Запуск
 
+Рекомендуется запускать с ключом OpenRouter: только так работает полный поиск — правила + ИИ.
+
 ```bash
-OPENROUTER_API_KEY=sk-or-... docker compose up --build   # полный поиск: правила + ИИ
+OPENROUTER_API_KEY=sk-or-... docker compose up --build   # рекомендуется: правила + ИИ
 docker compose up --build                                # без ключа: правила и сохранённые ответы модели
 ```
 
@@ -55,10 +57,10 @@ uv run python evaluation/evaluate.py --llm cache      # метрики → evalu
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | схема и шаги поиска, где ИИ / код / человек, хранилище и модели, стоимость, качество, ограничения и план |
 | [AI_LOG.md](AI_LOG.md) | журнал работы с ИИ и время |
-| `src/analog_search/` | код по слоям: `domain` (правила и порты) ← `services` (сценарии) ← `repositories` (БД) и `infrastructure` (файлы, модели, источники) ← `app` (API, CLI, сборка); направление импортов проверяет `tests/test_layers.py` |
+| `src/` | код по слоям: `domain` (правила и порты) ← `services` (сценарии) ← `repositories` (БД) и `infrastructure` (файлы, модели, источники) ← `app` (API, CLI, сборка); направление импортов проверяет `tests/test_layers.py` |
 | `static/` | страницы поиска и правки знаний |
 | `research/` | знания: `categories.yaml`, `attributes.yaml` (начальное наполнение БД), отчёт по базе, вопросы специалисту, промпт исследования `PROMPT.md`; `scripts/` — генератор yaml из базы |
-| `config/search.yaml` | веса оценки, порог «не найдено», top-K |
+| `src/app/search_config.py` | правила поиска: веса оценки, порог «не найдено», top-K, уверенность модели |
 | `evaluation/` | контрольный набор `gold_queries.json`, `evaluate.py`, отчёт |
 | `demo/decisions.json` | демо-решения специалиста → золотые карточки |
 | `data/` | `positions.xlsx` (копия базы из задания), дамп БД, кэш ответов модели |

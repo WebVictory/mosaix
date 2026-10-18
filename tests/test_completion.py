@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from analog_search.domain.completion import Completer
-from analog_search.domain.knowledge import Category
+from domain.completion import Completer
+from domain.knowledge import Category
 
 NAMES = [
     "Кабель контрольный КВВГнг 7х1,5",

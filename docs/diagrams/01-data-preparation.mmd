@@ -1,0 +1,25 @@
+flowchart TB
+    classDef code fill:#dbeafe,stroke:#2563eb,color:#111
+    classDef ai fill:#f3e8ff,stroke:#9333ea,color:#111
+    classDef data fill:#fef9c3,stroke:#ca8a04,color:#111
+    classDef side fill:#f8fafc,stroke:#94a3b8,color:#334155
+
+    B0[("История закупок · 2 381 строка")]:::data
+
+    subgraph R1["1 · Нормализация и категория"]
+        direction LR
+        B1["7*1.5 → 7x1.5<br/>«кабель» → кабель контрольный<br/>2 264 строки с категорией"]:::code
+        JUNK["Перевозка, погрузка: 108<br/>в выдачу не идут"]:::side
+        B1 -.-> JUNK
+    end
+
+    subgraph R2["2–3 · Характеристики"]
+        direction LR
+        B2["2 · Правила<br/>7 жил · 1,5 мм² · нг-LS<br/>937 строк"]:::code
+        B3["3 · ИИ дочитывает, что правила не смогли<br/>выбирает из списка значений<br/>+472 строки"]:::ai
+        B2 -.-> B3
+    end
+
+    DB[("База: категория, характеристики, эмбеддинг")]:::data
+
+    B0 --> R1 --> R2 --> DB
